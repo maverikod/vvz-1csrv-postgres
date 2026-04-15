@@ -1,0 +1,119 @@
+# Полностью офлайн-сборка (без обращений в интернет при build).
+#
+# Подготовка (на машине с интернетом):
+#   1) docker pull ubuntu:noble && docker save ubuntu:noble -o ubuntu-noble.tar
+#   2) ./scripts/prepare-offline-apt.sh
+# На изолированной машине:
+#   docker load -i ubuntu-noble.tar
+#   docker build --network=none -f Dockerfile.offline -t vvz-1csrv-postgres:offline .
+#
+# Нужны: базовый образ ubuntu:noble и каталог install/offline-apt/ с Packages.gz.
+# Шрифты: заранее выполните install/fonts/make-offline-fonts-archive.sh → offline-fonts.tar.gz
+
+FROM ubuntu:noble
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN rm -rf /etc/apt/sources.list /etc/apt/sources.list.d/* \
+    && printf '%s\n' \
+      'Acquire::Check-Valid-Until "false";' \
+      'APT::Get::AllowUnauthenticated "true";' \
+      > /etc/apt/apt.conf.d/99offline
+
+COPY install/offline-apt /tmp/repo
+
+RUN echo "deb [trusted=yes] file:/tmp/repo ./" > /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates locales \
+    && printf '%s\n' 'ru_RU.UTF-8 UTF-8' 'uk_UA.UTF-8 UTF-8' 'ru_UA.UTF-8 UTF-8' >> /etc/locale.gen \
+    && locale-gen \
+    && apt-get install -y \
+        /tmp/repo/postgrespro-std-16-libs_*.deb \
+        /tmp/repo/postgrespro-std-16-client_*.deb \
+        /tmp/repo/postgrespro-std-16-server_*.deb \
+        /tmp/repo/postgrespro-std-16-contrib_*.deb \
+    && apt-get install -y --no-install-recommends liblcms2-utils \
+    && mkdir -p /tmp/1c \
+    && cd /tmp/1c \
+    && cp \
+        /tmp/repo/1c-enterprise-8.3.19.1351-common-nls_8.3.19-1351_amd64.deb \
+        /tmp/repo/1c-enterprise-8.3.19.1351-common_8.3.19-1351_amd64.deb \
+        /tmp/repo/1c-enterprise-8.3.19.1351-server-nls_8.3.19-1351_amd64.deb \
+        /tmp/repo/1c-enterprise-8.3.19.1351-server_8.3.19-1351_amd64.deb \
+        /tmp/repo/1c-enterprise-8.3.19.1351-ws-nls_8.3.19-1351_amd64.deb \
+        /tmp/repo/1c-enterprise-8.3.19.1351-ws_8.3.19-1351_amd64.deb \
+        . \
+    && dpkg -i \
+        1c-enterprise-8.3.19.1351-common-nls_8.3.19-1351_amd64.deb \
+        1c-enterprise-8.3.19.1351-common_8.3.19-1351_amd64.deb \
+        1c-enterprise-8.3.19.1351-server-nls_8.3.19-1351_amd64.deb \
+        1c-enterprise-8.3.19.1351-server_8.3.19-1351_amd64.deb \
+        1c-enterprise-8.3.19.1351-ws-nls_8.3.19-1351_amd64.deb \
+        1c-enterprise-8.3.19.1351-ws_8.3.19-1351_amd64.deb \
+    || true \
+    && apt-get -f install -y \
+    && apt-get install -y --no-install-recommends pcscd libpcsclite1 libccid usbutils \
+    && rm -rf /var/lib/apt/lists/* /tmp/1c /tmp/repo
+
+COPY install/fonts/offline-fonts.tar.gz /tmp/offline-fonts.tar.gz
+# fontconfig не в минимальной установке — без fc-cache шрифты на диске всё равно на месте
+RUN tar -xzf /tmp/offline-fonts.tar.gz -C / \
+    && rm -f /tmp/offline-fonts.tar.gz
+
+COPY install/offline-apt /tmp/repo-aladdin
+COPY install/aladdin/README.txt /usr/local/share/doc/vvz-aladdin/README.txt
+COPY install/aladdin/deb /tmp/aladdin-deb
+RUN if ls /tmp/aladdin-deb/*.deb >/dev/null 2>&1; then \
+      echo "deb [trusted=yes] file:/tmp/repo-aladdin ./" > /etc/apt/sources.list; \
+      printf '%s\n' \
+        'Acquire::Check-Valid-Until "false";' \
+        'APT::Get::AllowUnauthenticated "true";' \
+        > /etc/apt/apt.conf.d/99offline; \
+      apt-get update && \
+      ( dpkg -i /tmp/aladdin-deb/*.deb || apt-get install -y -f ) && \
+      rm -rf /var/lib/apt/lists/*; \
+    fi; \
+    rm -rf /tmp/aladdin-deb /tmp/repo-aladdin
+
+COPY install/offline-apt /tmp/repo-hasp
+COPY install/sentinel-hasp/README.txt /usr/local/share/doc/vvz-sentinel-hasp/README.txt
+COPY install/sentinel-hasp/deb /tmp/hasp-deb
+COPY docker/install-sentinel-aksusbd.sh /usr/local/sbin/install-sentinel-aksusbd.sh
+RUN chmod +x /usr/local/sbin/install-sentinel-aksusbd.sh \
+    && if ls /tmp/hasp-deb/aksusbd*.deb >/dev/null 2>&1; then \
+      echo "deb [trusted=yes] file:/tmp/repo-hasp ./" > /etc/apt/sources.list; \
+      printf '%s\n' \
+        'Acquire::Check-Valid-Until "false";' \
+        'APT::Get::AllowUnauthenticated "true";' \
+        > /etc/apt/apt.conf.d/99offline; \
+      apt-get update; \
+      /usr/local/sbin/install-sentinel-aksusbd.sh --file "$(ls /tmp/hasp-deb/aksusbd*.deb | head -1)"; \
+      rm -rf /var/lib/apt/lists/*; \
+    fi; \
+    rm -rf /tmp/hasp-deb /tmp/repo-hasp
+
+ARG ONEC_VERSION=8.3.19.1351
+ENV ONEC_VERSION=${ONEC_VERSION}
+COPY docker/srv1cv83.default /etc/default/srv1cv83
+COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY docker/start-stack.sh /usr/local/bin/start-stack.sh
+COPY docker/vvz-configure-pg-hba.sh /usr/local/bin/vvz-configure-pg-hba.sh
+COPY install/pg/conf.d/99-1c-enterprise.conf /usr/local/share/vvz-pg-1c/99-1c-enterprise.conf
+COPY install/pg/conf.d/zz-1c-password-md5.conf /usr/local/share/vvz-pg-1c/zz-1c-password-md5.conf
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/start-stack.sh /usr/local/bin/vvz-configure-pg-hba.sh \
+    && ln -sf "/opt/1cv8/x86_64/${ONEC_VERSION}/srv1cv83" /etc/init.d/srv1cv83 \
+    && set -eux; \
+    if id -u ubuntu >/dev/null 2>&1; then \
+      groupmod -g 60000 ubuntu; \
+      usermod -u 60000 -g ubuntu ubuntu; \
+    fi; \
+    groupmod -g 1000 grp1cv8; \
+    usermod -u 1000 -g grp1cv8 usr1cv8; \
+    getent group pcscd >/dev/null && usermod -aG pcscd usr1cv8 || true; \
+    if id -u postgres >/dev/null 2>&1; then \
+      groupmod -g 1001 postgres; \
+      usermod -u 1001 -g postgres postgres; \
+    fi
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["/usr/local/bin/start-stack.sh"]

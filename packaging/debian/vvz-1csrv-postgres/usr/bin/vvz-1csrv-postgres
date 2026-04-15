@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Обёртка над docker compose для каталога /usr/share/vvz-1csrv-postgres
+# Подкоманда: status — состояние PostgreSQL и 1С (ragent).
+set -euo pipefail
+SHARE=/usr/share/vvz-1csrv-postgres
+for f in /etc/default/pgsql1c-stack /etc/default/vvz-1csrv-postgres; do
+  if [[ -f "$f" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "$f"
+    set +a
+  fi
+done
+export PGSQL1C_VAR="${PGSQL1C_VAR:-/var/pgsql1c}"
+export PGSQL1C_LOG="${PGSQL1C_LOG:-/var/log/pgsql1c}"
+export PGSQL1C_ETC="${PGSQL1C_ETC:-/etc/pgsql1c}"
+export PGSQL1C_DOCKER_SUBNET="${PGSQL1C_DOCKER_SUBNET:-172.31.0.0/16}"
+export PGSQL1C_CONTAINER_IP="${PGSQL1C_CONTAINER_IP:-172.31.0.2}"
+export PGSQL1C_PGHBA_MODE="${PGSQL1C_PGHBA_MODE:-managed}"
+export PGSQL1C_PGHBA_AUTH_METHOD="${PGSQL1C_PGHBA_AUTH_METHOD:-md5}"
+export VVZ_IMAGE="${VVZ_IMAGE:-docker.io/vasilyvz/vvz-1csrv-postgres:latest}"
+export ONEC_HOSTNAME="${ONEC_HOSTNAME:-e874b7de82cd}"
+
+if [[ "${1:-}" == "status" ]]; then
+  exec /usr/libexec/vvz-1csrv-postgres/stack-status
+fi
+
+cd "$SHARE"
+exec docker compose -f docker-compose.yml "$@"

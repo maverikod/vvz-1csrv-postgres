@@ -1,0 +1,11 @@
+# Параметры для /usr/bin/vvz-1csrv-postgres (пути к томам см. также /etc/default/pgsql1c-stack).
+
+# Образ с Docker Hub (по умолчанию публичный; при своём реестре замените имя/тег).
+VVZ_IMAGE=docker.io/vasilyvz/vvz-1csrv-postgres:latest
+
+# Порт PostgreSQL (5432) на хост не публикуется — только порты 1С (см. docker-compose.yml).
+# Подключение к БД с хоста: docker compose exec … или отдельный compose override при необходимости.
+
+# Имя узла контейнера = имя в реестре кластера 1С (reg_1541/*.lst).
+ONEC_HOSTNAME=devel1c
+

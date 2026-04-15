@@ -1,0 +1,20 @@
+# systemd unit pgsql1c-stack и docker compose (источник переменных PGSQL1C_*).
+
+# Каталог с docker-compose.yml из пакета (для клона репозитория укажите путь к проекту).
+COMPOSE_PROJECT_DIR=/usr/share/vvz-1csrv-postgres
+
+PGSQL1C_VAR=/var/pgsql1c
+PGSQL1C_LOG=/var/log/pgsql1c
+PGSQL1C_ETC=/etc/pgsql1c
+
+PGSQL1C_DOCKER_SUBNET=172.31.0.0/16
+PGSQL1C_CONTAINER_IP=172.31.0.2
+# managed — при старте контейнера перезаписывается pg_hba.conf. Свой файл на хосте: skip.
+PGSQL1C_PGHBA_MODE=managed
+#PGSQL1C_PGHBA_MODE=skip
+
+# Метод в pg_hba для host (managed): md5 | scram-sha-256
+#PGSQL1C_PGHBA_AUTH_METHOD=md5
+
+# INITDB locale (debconf on first install; see package postinst)
+INITDB_LOCALE=ru_UA.utf8

@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+# При remove/purge: пока на диске ещё есть compose и stack-stop — гасим стек и удаляем контейнеры.
+if [ "$1" = "remove" ]; then
+  if [ -x /usr/libexec/vvz-1csrv-postgres/stack-stop ]; then
+    /usr/libexec/vvz-1csrv-postgres/stack-stop || true
+  fi
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop pgsql1c-stack.service 2>/dev/null || true
+    systemctl disable pgsql1c-stack.service 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+  fi
+fi
+exit 0

@@ -1,0 +1,37 @@
+#!/bin/sh
+set -e
+# До распаковки пакета: Docker и образ (локально или pull). Без успеха — установка не идёт.
+case "$1" in
+  install|upgrade) ;;
+  *) exit 0 ;;
+esac
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "vvz-1csrv-postgres: команда docker не найдена. Установите docker.io или docker-ce (зависимости пакета) и повторите." >&2
+  exit 1
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  echo "vvz-1csrv-postgres: демон Docker не отвечает. Запустите: sudo systemctl enable --now docker" >&2
+  exit 1
+fi
+
+# Должно совпадать с VVZ_IMAGE по умолчанию в etc/default/vvz-1csrv-postgres внутри .deb
+VVZ_IMAGE=docker.io/vasilyvz/vvz-1csrv-postgres:latest
+if [ -f /etc/default/vvz-1csrv-postgres ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/vvz-1csrv-postgres 2>/dev/null || true
+fi
+VVZ_IMAGE="${VVZ_IMAGE:-docker.io/vasilyvz/vvz-1csrv-postgres:latest}"
+
+if docker image inspect "$VVZ_IMAGE" >/dev/null 2>&1; then
+  echo "vvz-1csrv-postgres: образ $VVZ_IMAGE уже есть локально." >&2
+else
+  echo "vvz-1csrv-postgres: образ $VVZ_IMAGE не найден локально, загрузка с реестра (до установки файлов пакета)..." >&2
+  if ! docker pull "$VVZ_IMAGE"; then
+    echo "vvz-1csrv-postgres: не удалось загрузить образ $VVZ_IMAGE. Установка прервана." >&2
+    exit 1
+  fi
+fi
+
+exit 0

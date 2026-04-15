@@ -1,0 +1,7 @@
+# Подключение: docker compose -f docker-compose.yml -f docker-compose.offline.yml build
+services:
+  app:
+    build:
+      dockerfile: Dockerfile.offline
+    image: vvz-1csrv-postgres:offline
+    command: ["/usr/local/bin/start-stack.sh"]

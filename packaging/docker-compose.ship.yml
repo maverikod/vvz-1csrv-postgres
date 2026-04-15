@@ -1,0 +1,40 @@
+# Образ с Docker Hub. Сеть и pg_hba — как в docker-compose.yml в корне репозитория.
+services:
+  app:
+    image: ${VVZ_IMAGE:-docker.io/vasilyvz/vvz-1csrv-postgres:latest}
+    hostname: ${ONEC_HOSTNAME:-e874b7de82cd}
+    ports:
+      - "1540:1540"
+      - "1541:1541"
+      - "1560-1591:1560-1591"
+    environment:
+      PGDATA: /var/lib/pgpro/std-16/data
+      INIT_PGDATA: "0"
+      PGSQL1C_DOCKER_SUBNET: ${PGSQL1C_DOCKER_SUBNET:-172.31.0.0/16}
+      PGSQL1C_PGHBA_MODE: ${PGSQL1C_PGHBA_MODE:-managed}
+      PGSQL1C_PGHBA_AUTH_METHOD: ${PGSQL1C_PGHBA_AUTH_METHOD:-md5}
+    entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
+    command: ["/usr/local/bin/start-stack.sh"]
+    stdin_open: true
+    tty: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    device_cgroup_rules:
+      - 'c 189:* rmw'
+    volumes:
+      - ${PGSQL1C_VAR:-/var/pgsql1c}/postgres:/var/lib/pgpro/std-16/data
+      - ${PGSQL1C_LOG:-/var/log/pgsql1c}:/var/log/1cv8
+      - ${PGSQL1C_VAR:-/var/pgsql1c}/1cv8:/home/usr1cv8/.1cv8
+      - ${PGSQL1C_VAR:-/var/pgsql1c}/cache/cfstorage:/var/cfstorage
+      - ${PGSQL1C_VAR:-/var/pgsql1c}/cache/app:/var/cache/1cv8
+      - ${PGSQL1C_ETC:-/etc/pgsql1c}/conf.d:/var/lib/pgpro/std-16/data/conf.d
+    networks:
+      pgsql1c_net:
+        ipv4_address: ${PGSQL1C_CONTAINER_IP:-172.31.0.2}
+
+networks:
+  pgsql1c_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${PGSQL1C_DOCKER_SUBNET:-172.31.0.0/16}

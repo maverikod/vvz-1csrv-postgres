@@ -1,0 +1,4 @@
+.venv/
+install/
+data/
+packaging/*.deb

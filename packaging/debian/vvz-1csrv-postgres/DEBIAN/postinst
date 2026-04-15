@@ -1,0 +1,89 @@
+#!/bin/bash
+set -e
+VAR=/var/pgsql1c
+
+LOCALE="ru_UA.utf8"
+if [ -f /usr/share/debconf/confmodule ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/debconf/confmodule
+  if [ -f /usr/share/vvz-1csrv-postgres/debconf/locale.template ]; then
+    debconf-loadtemplate vvz-1csrv-postgres /usr/share/vvz-1csrv-postgres/debconf/locale.template 2>/dev/null || true
+  fi
+  db_version 2.0 || true
+  if [ "$1" = "configure" ] && [ -z "$2" ]; then
+    db_input medium vvz-1csrv-postgres/default-locale || true
+  fi
+  db_go || true
+  db_get vvz-1csrv-postgres/default-locale || true
+  if [ -n "${RET:-}" ]; then
+    LOCALE="$RET"
+  fi
+fi
+
+case "$LOCALE" in
+  ru_UA.utf8|ru_RU.utf8|uk_UA.utf8) ;;
+  *) LOCALE=ru_UA.utf8 ;;
+esac
+
+# Образ проверяется и при необходимости скачивается в preinst (до распаковки пакета).
+
+# --- Каталоги, конфиги, initdb, сервисы ---
+mkdir -p "$VAR/postgres" "$VAR/1cv8" "$VAR/cache/cfstorage" "$VAR/cache/app" \
+  /var/log/pgsql1c /etc/pgsql1c/conf.d
+chown -R 1001:1001 "$VAR/postgres" 2>/dev/null || true
+# PostgreSQL требует PGDATA 0700 или 0750; после mkdir часто 0755
+chmod 0700 "$VAR/postgres" 2>/dev/null || true
+chown -R 1000:1000 "$VAR/1cv8" "$VAR/cache" /var/log/pgsql1c 2>/dev/null || true
+
+TEMPLATE=/usr/share/vvz-1csrv-postgres/pgsql1c-stack.default
+CFG=/etc/default/pgsql1c-stack
+
+if [ ! -f "$CFG" ] && [ -f "$TEMPLATE" ]; then
+  cp -a "$TEMPLATE" "$CFG"
+fi
+if [ -f "$CFG" ]; then
+  if ! bash -c 'set -a; . "$1"; set +a' _ "$CFG" 2>/dev/null; then
+    echo "vvz-1csrv-postgres: повреждён $CFG — восстановление из $TEMPLATE" >&2
+    if [ ! -f "$TEMPLATE" ]; then
+      echo "vvz-1csrv-postgres: нет файла $TEMPLATE" >&2
+      exit 1
+    fi
+    cp -a "$TEMPLATE" "$CFG"
+  fi
+fi
+
+if [ -f "$CFG" ]; then
+  if grep -q '^INITDB_LOCALE=' "$CFG" 2>/dev/null; then
+    tmp=$(mktemp)
+    if awk -v loc="$LOCALE" '/^INITDB_LOCALE=/ { print "INITDB_LOCALE=" loc; next } { print }' "$CFG" > "$tmp"; then
+      chmod --reference="$CFG" "$tmp" 2>/dev/null || true
+      mv "$tmp" "$CFG"
+    else
+      rm -f "$tmp"
+      exit 1
+    fi
+  else
+    echo "INITDB_LOCALE=${LOCALE}" >> "$CFG"
+  fi
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload 2>/dev/null || true
+fi
+
+if [ -x /usr/bin/vvz-1csrv-postgres ] && [ ! -f "${VAR}/postgres/PG_VERSION" ]; then
+  if ! /usr/bin/vvz-1csrv-postgres run --rm -e INIT_PGDATA=1 -e "INITDB_LOCALE=${LOCALE}" app true; then
+    echo "vvz-1csrv-postgres: не удалось выполнить первичную инициализацию каталога данных." >&2
+    exit 1
+  fi
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl enable pgsql1c-stack.service 2>/dev/null || true
+  if ! systemctl start pgsql1c-stack.service; then
+    echo "vvz-1csrv-postgres: не удалось запустить pgsql1c-stack.service." >&2
+    echo "vvz-1csrv-postgres: см. sudo journalctl -u pgsql1c-stack.service -b --no-pager" >&2
+    exit 1
+  fi
+fi
+exit 0

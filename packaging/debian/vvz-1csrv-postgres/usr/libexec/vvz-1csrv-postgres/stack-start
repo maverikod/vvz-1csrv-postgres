@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Запуск compose-стека; пути и образ — в /etc/default/pgsql1c-stack и /etc/default/vvz-1csrv-postgres
+set -euo pipefail
+
+if ! docker info >/dev/null 2>&1; then
+  echo "pgsql1c-stack: демон Docker не отвечает. Запустите: sudo systemctl enable --now docker" >&2
+  exit 1
+fi
+
+for f in /etc/default/pgsql1c-stack /etc/default/vvz-1csrv-postgres; do
+  if [[ -f "$f" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "$f"
+    set +a
+  fi
+done
+DIR="${COMPOSE_PROJECT_DIR:-/usr/share/vvz-1csrv-postgres}"
+cd "$DIR"
+exec docker compose up -d

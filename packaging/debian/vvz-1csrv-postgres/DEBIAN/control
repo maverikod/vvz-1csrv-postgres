@@ -1,0 +1,12 @@
+Package: vvz-1csrv-postgres
+Version: 1.0.14
+Section: misc
+Priority: optional
+Architecture: all
+Maintainer: vvz <vvz@localhost>
+Depends: docker.io | docker-ce, docker-compose-plugin | docker-compose-v2, debconf | debconf-2.0
+Recommends: ca-certificates, apt-utils
+Description: 1C:Enterprise + Postgres Pro (Docker Compose)
+ Макет каталогов и обёртка docker compose для стека 1С и Postgres Pro в контейнере.
+ Образ контейнера загружается с Docker Hub (см. /etc/default/vvz-1csrv-postgres).
+ На пустой системе установка через apt подтягивает демон Docker и Compose v2 (см. Depends).

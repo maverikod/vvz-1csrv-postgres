@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+for f in /etc/default/pgsql1c-stack /etc/default/vvz-1csrv-postgres; do
+  if [[ -f "$f" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "$f"
+    set +a
+  fi
+done
+DIR="${COMPOSE_PROJECT_DIR:-/usr/share/vvz-1csrv-postgres}"
+cd "$DIR"
+# --remove-orphans: убрать контейнеры без сервиса в текущем compose
+exec docker compose down --remove-orphans

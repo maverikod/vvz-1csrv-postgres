@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Статус контейнера, PostgreSQL и ragent (1С). Те же переменные, что у vvz-1csrv-postgres.
+set -euo pipefail
+for f in /etc/default/pgsql1c-stack /etc/default/vvz-1csrv-postgres; do
+  if [[ -f "$f" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "$f"
+    set +a
+  fi
+done
+export PGSQL1C_VAR="${PGSQL1C_VAR:-/var/pgsql1c}"
+export PGSQL1C_LOG="${PGSQL1C_LOG:-/var/log/pgsql1c}"
+export PGSQL1C_ETC="${PGSQL1C_ETC:-/etc/pgsql1c}"
+export PGSQL1C_DOCKER_SUBNET="${PGSQL1C_DOCKER_SUBNET:-172.31.0.0/16}"
+export PGSQL1C_CONTAINER_IP="${PGSQL1C_CONTAINER_IP:-172.31.0.2}"
+export PGSQL1C_PGHBA_MODE="${PGSQL1C_PGHBA_MODE:-managed}"
+export PGSQL1C_PGHBA_AUTH_METHOD="${PGSQL1C_PGHBA_AUTH_METHOD:-md5}"
+export VVZ_IMAGE="${VVZ_IMAGE:-docker.io/vasilyvz/vvz-1csrv-postgres:latest}"
+export ONEC_HOSTNAME="${ONEC_HOSTNAME:-e874b7de82cd}"
+
+DIR="${COMPOSE_PROJECT_DIR:-/usr/share/vvz-1csrv-postgres}"
+cd "$DIR"
+
+echo "=== Docker Compose (сервис app) ==="
+if ! docker compose ps -a 2>/dev/null; then
+  echo "docker compose недоступен или нет доступа к Docker."
+  exit 1
+fi
+
+cid="$(docker compose ps -q app 2>/dev/null || true)"
+if [[ -z "${cid}" ]]; then
+  echo ""
+  echo "PostgreSQL: контейнер не запущен"
+  echo "1С (ragent): контейнер не запущен"
+  exit 1
+fi
+
+echo ""
+echo "=== PostgreSQL ==="
+if docker compose exec -T app /opt/pgpro/std-16/bin/pg_isready -h 127.0.0.1 -p 5432 2>/dev/null; then
+  echo "Состояние: принимает подключения (порт 5432 внутри контейнера)."
+else
+  echo "Состояние: не отвечает или кластер ещё не готов."
+fi
+
+echo ""
+echo "=== 1С:Enterprise (ragent / сервер приложений) ==="
+if docker compose exec -T app pidof ragent >/dev/null 2>&1; then
+  echo "Состояние: процесс ragent запущен (агент кластера)."
+  docker compose exec -T app pidof ragent | tr ' ' '\n' | sed 's/^/  pid /' || true
+else
+  echo "Состояние: ragent не найден (сервер 1С не работает в контейнере)."
+fi

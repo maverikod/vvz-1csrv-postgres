@@ -1,0 +1,13 @@
+# Параметры для /etc/init.d/srv1cv83 (см. /opt/1cv8/x86_64/*/srv1cv83.conf).
+# На «железе» то же самое: install/linux/systemd/install-systemd-services.sh и unit srv1cv83@.service.
+SRV1CV8_USER=usr1cv8
+SRV1CV8_DATA=/home/usr1cv8/.1cv8/1C/1cv8/
+SRV1CV8_PORT=1540
+SRV1CV8_REGPORT=1541
+SRV1CV8_RANGE=1560:1591
+SRV1CV8_SECLEV=0
+SRV1CV8_PINGPERIOD=1000
+SRV1CV8_PINGTIMEOUT=5000
+# SRV1CV8_DEBUG=1
+SRV1CV8_WAITSTART=5
+SRV1CV8_WAITSTOP=5

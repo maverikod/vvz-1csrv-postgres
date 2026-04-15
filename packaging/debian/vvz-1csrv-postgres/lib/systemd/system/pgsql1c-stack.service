@@ -1,0 +1,14 @@
+[Unit]
+Description=1C:Enterprise + Postgres Pro (Docker Compose). Подробный статус БД и 1С: vvz-1csrv-postgres status
+After=docker.service docker.socket network-online.target
+Wants=network-online.target docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/vvz-1csrv-postgres/stack-start
+ExecStop=/usr/libexec/vvz-1csrv-postgres/stack-stop
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

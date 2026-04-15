@@ -1,0 +1,6 @@
+Template: vvz-1csrv-postgres/default-locale
+Type: select
+Choices: ru_UA.utf8, ru_RU.utf8, uk_UA.utf8
+Default: ru_UA.utf8
+Description: Локаль кластера PostgreSQL по умолчанию (UTF-8)
+ Локаль для первичной инициализации каталога данных (initdb). Используется при первой установке, пока каталог данных пуст (см. PGSQL1C_VAR в /etc/default/pgsql1c-stack). Сменить LC_COLLATE без пересоздания кластера нельзя.
