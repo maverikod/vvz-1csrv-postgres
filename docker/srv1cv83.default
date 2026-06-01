@@ -8,6 +8,8 @@ SRV1CV8_RANGE=1560:1591
 SRV1CV8_SECLEV=0
 SRV1CV8_PINGPERIOD=1000
 SRV1CV8_PINGTIMEOUT=5000
-# SRV1CV8_DEBUG=1
+# SRV1CV8_DEBUG=1 добавляет ragent -debug (серверная отладка). В headless-контейнере без отладчика
+# при проблемах с лицензией/портами ragent может сразу выходить — оставляем 0 по умолчанию.
+SRV1CV8_DEBUG=1
 SRV1CV8_WAITSTART=5
 SRV1CV8_WAITSTOP=5

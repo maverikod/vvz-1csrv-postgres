@@ -1,6 +1,7 @@
 # Образ с Docker Hub. Сеть и pg_hba — как в docker-compose.yml в корне репозитория.
 services:
   app:
+    restart: unless-stopped
     image: ${VVZ_IMAGE:-docker.io/vasilyvz/vvz-1csrv-postgres:latest}
     hostname: ${ONEC_HOSTNAME:-e874b7de82cd}
     ports:

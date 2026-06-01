@@ -49,6 +49,14 @@ G_VER_BUILD=$(echo "$VER" | awk -F. '{print $3}')
 G_VER_RELEASE=$(echo "$VER" | awk -F. '{print $4}')
 PIDFILE="/var/run/srv1cv${G_VER_MAJOR}-${G_VER_MINOR}-${G_VER_BUILD}-${G_VER_RELEASE}.pid"
 
+dump_ragent_diag() {
+  echo "start-stack: --- диагностика после остановки ragent ---" >&2
+  "$INIT_1C" status 2>&1 | head -40 >&2 || true
+  ps -C ragent -o pid=,user=,args= 2>&1 | head -20 >&2 || true
+  tail -40 "$LOG_PG" 2>/dev/null >&2 || true
+  find /home/usr1cv8/.1cv8 -maxdepth 5 -type f \( -iname '*.log' -o -iname 'crash*' -o -iname '*.dump' \) 2>/dev/null | head -25 >&2 || true
+}
+
 cleanup() {
   echo "start-stack: остановка (сигнал)…"
   "$INIT_1C" stop 2>/dev/null || true
@@ -59,29 +67,41 @@ cleanup() {
 }
 trap cleanup SIGTERM SIGINT
 
-echo "start-stack: запуск 1С через ${INIT_1C} start (ragent -daemon, см. /etc/default/srv1cv83)…"
-"$INIT_1C" start
+echo "start-stack: супервизор 1С (при падении ragent — перезапуск и диагностика в лог контейнера)…"
 
-for ((i = 0; i < 150; i++)); do
-  [[ -f "$PIDFILE" ]] && break
-  sleep 0.2
-done
-if [[ ! -f "$PIDFILE" ]]; then
-  echo "start-stack: после start нет pidfile $PIDFILE" >&2
-  exit 1
-fi
+while true; do
+  echo "start-stack: запуск 1С через ${INIT_1C} (ragent -daemon, см. /etc/default/srv1cv83)…"
+  "$INIT_1C" stop 2>/dev/null || true
+  sleep 1
+  rm -f "$PIDFILE" 2>/dev/null || true
+  "$INIT_1C" start
 
-RAGENT_PID="$(cat "$PIDFILE")"
-if ! kill -0 "$RAGENT_PID" 2>/dev/null; then
-  echo "start-stack: в pidfile процесс не жив (pid=$RAGENT_PID)" >&2
-  exit 1
-fi
+  for ((i = 0; i < 150; i++)); do
+    [[ -f "$PIDFILE" ]] && break
+    sleep 0.2
+  done
+  if [[ ! -f "$PIDFILE" ]]; then
+    echo "start-stack: после start нет pidfile $PIDFILE — повтор через 5с" >&2
+    dump_ragent_diag
+    sleep 5
+    continue
+  fi
 
-echo "start-stack: ragent pid $RAGENT_PID — ожидание (PID 1 контейнера); PostgreSQL :5432"
+  RAGENT_PID="$(cat "$PIDFILE" 2>/dev/null | tr -d '[:space:]')"
+  if [[ -z "$RAGENT_PID" ]] || ! kill -0 "$RAGENT_PID" 2>/dev/null; then
+    echo "start-stack: в pidfile процесс не жив (pid=$RAGENT_PID) — повтор через 5с" >&2
+    dump_ragent_diag
+    sleep 5
+    continue
+  fi
 
-while kill -0 "$RAGENT_PID" 2>/dev/null; do
+  echo "start-stack: ragent pid $RAGENT_PID — ожидание (PID 1 контейнера); PostgreSQL :5432"
+
+  while kill -0 "$RAGENT_PID" 2>/dev/null; do
+    sleep 5
+  done
+
+  echo "start-stack: ragent завершился — перезапуск через 5с" >&2
+  dump_ragent_diag
   sleep 5
 done
-
-echo "start-stack: ragent завершился" >&2
-exit 1

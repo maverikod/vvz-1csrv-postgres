@@ -4,6 +4,7 @@
 
 services:
   app:
+    restart: unless-stopped
     hostname: ${ONEC_HOSTNAME:-e874b7de82cd}
     build:
       context: .
