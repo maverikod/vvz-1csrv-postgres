@@ -27,13 +27,20 @@ esac
 
 # Образ проверяется и при необходимости скачивается в preinst (до распаковки пакета).
 
-# --- Каталоги, конфиги, initdb, сервисы ---
-mkdir -p "$VAR/postgres" "$VAR/1cv8" "$VAR/cache/cfstorage" "$VAR/cache/app" \
-  /var/log/pgsql1c /etc/pgsql1c/conf.d
-chown -R 1001:1001 "$VAR/postgres" 2>/dev/null || true
-# PostgreSQL требует PGDATA 0700 или 0750; после mkdir часто 0755
-chmod 0700 "$VAR/postgres" 2>/dev/null || true
-chown -R 1000:1000 "$VAR/1cv8" "$VAR/cache" /var/log/pgsql1c 2>/dev/null || true
+# --- Каталоги, пользователи, конфиги, initdb, сервисы ---
+LIB=/usr/libexec/vvz-1csrv-postgres
+# shellcheck source=/dev/null
+. "${LIB}/pgsql1c-host-users.sh"
+
+pgsql1c_ensure_host_users
+pgsql1c_migrate_legacy_ownership
+
+if [ ! -f /etc/pgsql1c/srv1cv83 ] && [ -f /usr/share/vvz-1csrv-postgres/srv1cv83.default ]; then
+  install -d -m 0755 /etc/pgsql1c
+  install -m 0644 /usr/share/vvz-1csrv-postgres/srv1cv83.default /etc/pgsql1c/srv1cv83
+fi
+
+pgsql1c_chown_host_data
 
 TEMPLATE=/usr/share/vvz-1csrv-postgres/pgsql1c-stack.default
 CFG=/etc/default/pgsql1c-stack

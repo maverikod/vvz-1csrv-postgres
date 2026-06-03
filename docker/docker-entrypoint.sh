@@ -5,20 +5,57 @@ set -euo pipefail
 PGDATA="${PGDATA:-/var/lib/pgpro/std-16/data}"
 INIT_PGDATA="${INIT_PGDATA:-0}"
 
+# Bind-mount: владельца задаёт хост (postinst). Без mount — выставляем локально.
+vvz_is_mount() {
+  mountpoint -q "$1" 2>/dev/null
+}
+
 mkdir -p \
   /var/log/1cv8 \
   /var/cache/1cv8 \
   /var/cfstorage \
+  /var/backups/pgsql \
   /home/usr1cv8/.1cv8
 
-install -d -m 0755 -o usr1cv8 -g grp1cv8 /var/log/1cv8 /var/cache/1cv8 /var/cfstorage
-chown -R usr1cv8:grp1cv8 /home/usr1cv8
+# postgres.log — владелец postgres (не usr1cv8)
+if vvz_is_mount /var/log/1cv8; then
+  chmod 0750 /var/log/1cv8 2>/dev/null || true
+else
+  install -d -m 0750 -o postgres -g postgres /var/log/1cv8
+fi
+
+for _vvz_d in /var/cache/1cv8 /var/cfstorage; do
+  if vvz_is_mount "$_vvz_d"; then
+    chmod 0755 "$_vvz_d" 2>/dev/null || true
+  else
+    install -d -m 0755 -o usr1cv8 -g grp1cv8 "$_vvz_d"
+  fi
+done
+
+if vvz_is_mount /home/usr1cv8/.1cv8; then
+  : # данные 1С на хосте
+else
+  chown -R usr1cv8:grp1cv8 /home/usr1cv8
+fi
 
 mkdir -p "${PGDATA}"
 
+if [[ -d /var/backups/pgsql ]]; then
+  if vvz_is_mount /var/backups/pgsql; then
+    chmod 0750 /var/backups/pgsql 2>/dev/null || true
+  else
+    chown postgres:postgres /var/backups/pgsql 2>/dev/null || true
+    chmod 0750 /var/backups/pgsql 2>/dev/null || true
+  fi
+fi
+
 if [[ "$(id -u postgres 2>/dev/null || echo 0)" -gt 0 ]]; then
-  chown -R postgres:postgres "${PGDATA}" 2>/dev/null || true
-  chmod 0700 "${PGDATA}" 2>/dev/null || true
+  if vvz_is_mount "${PGDATA}"; then
+    chmod 0700 "${PGDATA}" 2>/dev/null || true
+  else
+    chown -R postgres:postgres "${PGDATA}" 2>/dev/null || true
+    chmod 0700 "${PGDATA}" 2>/dev/null || true
+  fi
 fi
 
 # conf.d до initdb мешает «пустому» PGDATA. Если conf.d — том с хоста, rm -rf невозможен (EBUSY).

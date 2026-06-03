@@ -14,6 +14,7 @@ done
 export PGSQL1C_VAR="${PGSQL1C_VAR:-/var/pgsql1c}"
 export PGSQL1C_LOG="${PGSQL1C_LOG:-/var/log/pgsql1c}"
 export PGSQL1C_ETC="${PGSQL1C_ETC:-/etc/pgsql1c}"
+export PGSQL1C_BACKUP="${PGSQL1C_BACKUP:-${PGSQL1C_VAR}/backups}"
 export PGSQL1C_DOCKER_SUBNET="${PGSQL1C_DOCKER_SUBNET:-172.31.0.0/16}"
 export PGSQL1C_CONTAINER_IP="${PGSQL1C_CONTAINER_IP:-172.31.0.2}"
 export PGSQL1C_PGHBA_MODE="${PGSQL1C_PGHBA_MODE:-managed}"
@@ -23,6 +24,14 @@ export ONEC_HOSTNAME="${ONEC_HOSTNAME:-e874b7de82cd}"
 
 if [[ "${1:-}" == "status" ]]; then
   exec /usr/libexec/vvz-1csrv-postgres/stack-status
+fi
+
+if [[ "${1:-}" == "backup" ]]; then
+  exec /usr/libexec/vvz-1csrv-postgres/pgsql1c-backup
+fi
+
+if [[ "${1:-}" == "verify" ]]; then
+  exec /usr/libexec/vvz-1csrv-postgres/pgsql1c-verify-storage
 fi
 
 cd "$SHARE"

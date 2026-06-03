@@ -13,10 +13,14 @@
 | Настройки PostgreSQL | `PGSQL1C_ETC` | **`/etc/pgsql1c`** | Каталог **`conf.d/`** монтируется в `.../data/conf.d` кластера (файлы `*.conf`, в т.ч. параметры для 1С) |
 | Логи | `PGSQL1C_LOG` | **`/var/log/pgsql1c`** | В том числе **`postgres.log`** (задаётся в `docker/start-stack.sh`). Журналы кластера 1С по умолчанию лежат в данных **`PGSQL1C_VAR/1cv8`**, не в этом томе. |
 | Данные (базы и 1С) | `PGSQL1C_VAR` | **`/var/pgsql1c`** | **`postgres/`** — файлы кластера PostgreSQL (PGDATA); **`1cv8/`** — домашний каталог кластера 1С; **`cache/`** — cfstorage и кеш приложения |
+| Дампы PostgreSQL | `PGSQL1C_BACKUP` | **`/var/pgsql1c/backups`** | **`pg_dump`** в **`ИмяБазы-ДеньНедели-HH.MM.bz2`** (cron: каждые 2 ч с 08:00 до 20:00) |
+| Конфиг ragent (1С) | `PGSQL1C_ETC` | **`/etc/pgsql1c/srv1cv83`** | монтируется в контейнер как **`/etc/default/srv1cv83`** |
 
 Внутри контейнера по-прежнему: PGDATA → `/var/lib/pgpro/std-16/data`, данные 1С → `/home/usr1cv8/.1cv8`.
 
-Создание каталогов и прав: **`sudo ./scripts/docker-data-init.sh`** (или переменные `PGSQL1C_*` перед вызовом). Каталог **`…/postgres`** (PGDATA на хосте) должен быть **`0700`** для пользователя **postgres (uid 1001 в образе)** — скрипт и **`postinst`** пакета выставляют это явно.
+Создание каталогов, системных пользователей **`pgsql1c-1cv8`** (UID **60080**) и **`pgsql1c-postgres`** (UID **60081**) и прав: **`sudo ./scripts/docker-data-init.sh`**. Эти UID совпадают с **`usr1cv8`** / **`postgres`** в образе. Каталог **`…/postgres`** (PGDATA) — **`0700`**, владелец **`pgsql1c-postgres`**.
+
+Проверка томов и владельцев: **`sudo ./scripts/pgsql1c-verify-storage.sh`** или **`sudo vvz-1csrv-postgres verify`** (пакет .deb).
 
 Для работы **из каталога репозитория** без `/var/...` задайте в файле **`.env`** в корне проекта, например:
 
@@ -57,6 +61,20 @@ PGSQL1C_ETC=./data/pgconf
 ```
 
 Или переменная окружения **`PGSQL1C_POSTGRES_PASSWORD`**, или пароль со **stdin**. Каталог compose берётся из **`/etc/default/pgsql1c-stack`** (поле **`COMPOSE_PROJECT_DIR`**), при отсутствии — из текущего каталога, если там есть **`docker-compose.yml`**, иначе **`/usr/share/vvz-1csrv-postgres`**. Явный **`COMPOSE_PROJECT_DIR`** только если нужно переопределить. Подключение — от **`postgres`** внутри контейнера (**`peer`**), старый пароль не нужен.
+
+### Резервное копирование PostgreSQL
+
+Дампы пишутся в **`PGSQL1C_BACKUP`** (по умолчанию **`/var/pgsql1c/backups`**, в контейнере **`/var/backups/pgsql`**). Имя файла: **`ИмяБазы-НомерДня-HH.MM.bz2`**, где **НомерДня** — 1 (понедельник) … 7 (воскресенье); в тот же день недели и то же время файл перезаписывается.
+
+Расписание (пакет **.deb**): **`/etc/cron.d/pgsql1c-backup`** — каждые 2 часа с **08:00** до **20:00** (8, 10, 12, 14, 16, 18, 20). Лог: **`/var/log/pgsql1c/backup.log`**.
+
+Ручной запуск:
+
+```bash
+sudo vvz-1csrv-postgres backup
+# или из репозитория:
+./scripts/pgsql1c-backup.sh
+```
 
 ---
 

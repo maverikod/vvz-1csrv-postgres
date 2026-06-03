@@ -24,7 +24,7 @@ COPY install/offline-apt /tmp/repo
 
 RUN echo "deb [trusted=yes] file:/tmp/repo ./" > /etc/apt/sources.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates locales \
+    && apt-get install -y --no-install-recommends ca-certificates locales bzip2 \
     && printf '%s\n' 'ru_RU.UTF-8 UTF-8' 'uk_UA.UTF-8 UTF-8' 'ru_UA.UTF-8 UTF-8' >> /etc/locale.gen \
     && locale-gen \
     && apt-get install -y \
@@ -107,12 +107,12 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/start-stack.sh /
       groupmod -g 60000 ubuntu; \
       usermod -u 60000 -g ubuntu ubuntu; \
     fi; \
-    groupmod -g 1000 grp1cv8; \
-    usermod -u 1000 -g grp1cv8 usr1cv8; \
+    groupmod -g 60080 grp1cv8; \
+    usermod -u 60080 -g grp1cv8 usr1cv8; \
     getent group pcscd >/dev/null && usermod -aG pcscd usr1cv8 || true; \
     if id -u postgres >/dev/null 2>&1; then \
-      groupmod -g 1001 postgres; \
-      usermod -u 1001 -g postgres postgres; \
+      groupmod -g 60081 postgres; \
+      usermod -u 60081 -g postgres postgres; \
     fi
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

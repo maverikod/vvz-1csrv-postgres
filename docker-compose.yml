@@ -35,6 +35,8 @@ services:
       - ${PGSQL1C_VAR:-/var/pgsql1c}/cache/cfstorage:/var/cfstorage
       - ${PGSQL1C_VAR:-/var/pgsql1c}/cache/app:/var/cache/1cv8
       - ${PGSQL1C_ETC:-/etc/pgsql1c}/conf.d:/var/lib/pgpro/std-16/data/conf.d
+      - ${PGSQL1C_BACKUP:-${PGSQL1C_VAR:-/var/pgsql1c}/backups}:/var/backups/pgsql
+      - ${PGSQL1C_ETC:-/etc/pgsql1c}/srv1cv83:/etc/default/srv1cv83:ro
     networks:
       pgsql1c_net:
         ipv4_address: ${PGSQL1C_CONTAINER_IP:-172.31.0.2}
