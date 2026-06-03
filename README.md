@@ -68,7 +68,7 @@ PGSQL1C_ETC=./data/pgconf
 
 Расписание (пакет **.deb**): **`/etc/cron.d/pgsql1c-backup`** — каждые 2 часа с **08:00** до **20:00** (8, 10, 12, 14, 16, 18, 20). Лог: **`/var/log/pgsql1c/backup.log`**.
 
-Ручной запуск:
+Ручной запуск (если cron уже делает бекап — второй экземпляр сразу завершится с ошибкой, lock **`/run/pgsql1c-backup.lock`**):
 
 ```bash
 sudo vvz-1csrv-postgres backup

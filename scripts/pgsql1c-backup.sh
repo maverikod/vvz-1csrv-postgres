@@ -45,6 +45,16 @@ fi
 
 mkdir -p "$PGSQL1C_BACKUP"
 
+LOCK_FILE="/run/pgsql1c-backup.lock"
+if [[ ! -w /run ]] 2>/dev/null; then
+  LOCK_FILE="${PGSQL1C_BACKUP}/.pgsql1c-backup.lock"
+fi
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "pgsql1c-backup: бекап уже выполняется (lock: ${LOCK_FILE})." >&2
+  exit 1
+fi
+
 DOW="$(date +%u)"
 TIME="$(date +%H.%M)"
 
