@@ -15,6 +15,7 @@ cp -f "$STAGE/etc/default/pgsql1c-stack-8327" \
 cp -f "$ROOT/docker/8.3.27/srv1cv83" \
   "$STAGE/usr/share/vvz-1csrv-postgres-8327/srv1cv83.default"
 
+find "$STAGE" -type d -exec chmod 0755 {} +
 chmod 0755 \
   "$STAGE/DEBIAN/preinst" "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/prerm" \
   "$STAGE/usr/bin/vvz-1csrv-postgres-8327" \
@@ -23,7 +24,11 @@ chmod 0755 \
 chmod 0644 \
   "$STAGE/DEBIAN/control" "$STAGE/DEBIAN/conffiles" \
   "$STAGE/etc/default/"* "$STAGE/etc/cron.d/"* \
-  "$STAGE/lib/systemd/system/"* "$STAGE/usr/share/vvz-1csrv-postgres-8327/"*
+  "$STAGE/lib/systemd/system/"* \
+  "$STAGE/usr/share/vvz-1csrv-postgres-8327/docker-compose.yml" \
+  "$STAGE/usr/share/vvz-1csrv-postgres-8327/pgsql1c-stack-8327.default" \
+  "$STAGE/usr/share/vvz-1csrv-postgres-8327/srv1cv83.default" \
+  "$STAGE/usr/share/vvz-1csrv-postgres-8327/debconf/locale.template"
 
 fakeroot dpkg-deb --build "$STAGE" "$OUT"
 printf 'Built: %s\n' "$OUT"

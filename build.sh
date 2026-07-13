@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build and publish only the 1C 8.3.27.2214 image.
+# Build the co-installable Debian package, then build and publish only the
+# 1C 8.3.27.2214 image.
 # Docker Hub authentication is read from DOCKERHUB_PAT in the project-root .env.
 
 set -euo pipefail

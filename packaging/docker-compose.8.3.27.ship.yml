@@ -1,4 +1,5 @@
 # Packaged, isolated 1C 8.3.27.2214 stack. No source-checkout mounts.
+name: ${COMPOSE_PROJECT_NAME:-vvz-1csrv-postgres-8327}
 services:
   app:
     restart: unless-stopped
