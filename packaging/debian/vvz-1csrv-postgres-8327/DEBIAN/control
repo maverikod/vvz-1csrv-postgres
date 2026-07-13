@@ -6,7 +6,7 @@ Architecture: all
 Maintainer: vvz <vvz@localhost>
 Depends: docker.io | docker-ce, docker-compose-plugin | docker-compose-v2, debconf | debconf-2.0
 Recommends: ca-certificates, apt-utils, cron, bzip2
-Description: 1C:Enterprise + Postgres Pro (Docker Compose)
- Макет каталогов и обёртка docker compose для стека 1С и Postgres Pro в контейнере.
+Description: 1C:Enterprise 8.3.27 + Postgres Pro (isolated Docker Compose)
+ Изолированный второй стек 1С 8.3.27.2214 и Postgres Pro в контейнере.
  Образ контейнера загружается с Docker Hub (см. /etc/default/vvz-1csrv-postgres-8327).
  На пустой системе установка через apt подтягивает демон Docker и Compose v2 (см. Depends).

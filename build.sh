@@ -8,6 +8,7 @@ set -euo pipefail
 set +x
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEB_BUILD="$ROOT/packaging/build-deb-8.3.27.sh"
 ENV_FILE="$ROOT/.env"
 DOCKERFILE="$ROOT/Dockerfile.8.3.27"
 DOCKER_REGISTRY="docker.io"
@@ -18,6 +19,10 @@ die() {
   printf 'build.sh: %s\n' "$1" >&2
   exit 1
 }
+
+[[ -x "$DEB_BUILD" ]] || die "Debian package builder not found or not executable: $DEB_BUILD"
+printf 'Building the co-installable Debian package...\n'
+"$DEB_BUILD"
 
 command -v docker >/dev/null 2>&1 || die "docker is not installed or is not in PATH"
 [[ -f "$DOCKERFILE" ]] || die "Dockerfile not found: $DOCKERFILE"

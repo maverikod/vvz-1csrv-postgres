@@ -2,6 +2,7 @@
 
 # Каталог с docker-compose.yml из пакета (для клона репозитория укажите путь к проекту).
 COMPOSE_PROJECT_DIR=/usr/share/vvz-1csrv-postgres-8327
+COMPOSE_PROJECT_NAME=vvz-1csrv-postgres-8327
 
 PGSQL1C_VAR=/var/pgsql1c-8327
 PGSQL1C_LOG=/var/log/pgsql1c-8327
