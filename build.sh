@@ -7,7 +7,7 @@ set -euo pipefail
 # Never allow a caller's xtrace setting to expose secret handling below.
 set +x
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$ROOT/.env"
 DOCKERFILE="$ROOT/Dockerfile.8.3.27"
 DOCKER_REGISTRY="docker.io"
@@ -15,7 +15,7 @@ DOCKER_USER="vasilyvz"
 IMAGE_REF="${DOCKER_REGISTRY}/${DOCKER_USER}/vvz-1csrv-postgres:8.3.27.2214"
 
 die() {
-  printf 'build-push-8.3.27: %s\n' "$1" >&2
+  printf 'build.sh: %s\n' "$1" >&2
   exit 1
 }
 
