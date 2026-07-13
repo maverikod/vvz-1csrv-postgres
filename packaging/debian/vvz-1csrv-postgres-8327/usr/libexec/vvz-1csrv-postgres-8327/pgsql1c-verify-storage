@@ -47,9 +47,9 @@ for u in "$PGSQL1C_1C_USER" "$PGSQL1C_PG_USER"; do
   fi
 done
 
-VAR="${PGSQL1C_VAR:-/var/pgsql1c-8327}"
-LOG="${PGSQL1C_LOG:-/var/log/pgsql1c-8327}"
-ETC="${PGSQL1C_ETC:-/etc/pgsql1c-8327}"
+VAR="${PGSQL1C_VAR:-/var/pgsql1c-8327-package}"
+LOG="${PGSQL1C_LOG:-/var/log/pgsql1c-8327-package}"
+ETC="${PGSQL1C_ETC:-/etc/pgsql1c-8327-package}"
 BACKUP="${PGSQL1C_BACKUP:-${VAR}/backups}"
 
 echo ""

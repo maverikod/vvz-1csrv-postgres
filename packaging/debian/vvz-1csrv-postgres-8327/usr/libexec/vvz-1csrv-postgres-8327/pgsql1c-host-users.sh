@@ -69,9 +69,9 @@ pgsql1c_ensure_host_users() {
 
 pgsql1c_chown_host_data() {
   pgsql1c_load_host_ids
-  local var="${PGSQL1C_VAR:-/var/pgsql1c-8327}"
-  local log="${PGSQL1C_LOG:-/var/log/pgsql1c-8327}"
-  local etc="${PGSQL1C_ETC:-/etc/pgsql1c-8327}"
+  local var="${PGSQL1C_VAR:-/var/pgsql1c-8327-package}"
+  local log="${PGSQL1C_LOG:-/var/log/pgsql1c-8327-package}"
+  local etc="${PGSQL1C_ETC:-/etc/pgsql1c-8327-package}"
   local backup="${PGSQL1C_BACKUP:-${var}/backups}"
 
   mkdir -p \
@@ -100,9 +100,9 @@ pgsql1c_chown_host_data() {
 # При обновлении с chown по «голым» 1000/1001 — перенос на именованных пользователей.
 pgsql1c_migrate_legacy_ownership() {
   pgsql1c_load_host_ids
-  local var="${PGSQL1C_VAR:-/var/pgsql1c-8327}"
-  local log="${PGSQL1C_LOG:-/var/log/pgsql1c-8327}"
-  local etc="${PGSQL1C_ETC:-/etc/pgsql1c-8327}"
+  local var="${PGSQL1C_VAR:-/var/pgsql1c-8327-package}"
+  local log="${PGSQL1C_LOG:-/var/log/pgsql1c-8327-package}"
+  local etc="${PGSQL1C_ETC:-/etc/pgsql1c-8327-package}"
   local backup="${PGSQL1C_BACKUP:-${var}/backups}"
   local path owner
 

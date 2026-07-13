@@ -12,7 +12,7 @@ for f in /etc/default/pgsql1c-stack-8327 /etc/default/vvz-1csrv-postgres-8327; d
   fi
 done
 
-export PGSQL1C_VAR="${PGSQL1C_VAR:-/var/pgsql1c-8327}"
+export PGSQL1C_VAR="${PGSQL1C_VAR:-/var/pgsql1c-8327-package}"
 export PGSQL1C_BACKUP="${PGSQL1C_BACKUP:-${PGSQL1C_VAR}/backups}"
 
 COMPOSE_DIR="${COMPOSE_PROJECT_DIR:-/usr/share/vvz-1csrv-postgres-8327}"

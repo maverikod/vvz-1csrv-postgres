@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-VAR=/var/pgsql1c-8327
+VAR=/var/pgsql1c-8327-package
 
 LOCALE="ru_UA.utf8"
 if [ -f /usr/share/debconf/confmodule ]; then
@@ -35,9 +35,9 @@ LIB=/usr/libexec/vvz-1csrv-postgres-8327
 pgsql1c_ensure_host_users
 pgsql1c_migrate_legacy_ownership
 
-if [ ! -f /etc/pgsql1c-8327/srv1cv83 ] && [ -f /usr/share/vvz-1csrv-postgres-8327/srv1cv83.default ]; then
-  install -d -m 0755 /etc/pgsql1c-8327
-  install -m 0644 /usr/share/vvz-1csrv-postgres-8327/srv1cv83.default /etc/pgsql1c-8327/srv1cv83
+if [ ! -f /etc/pgsql1c-8327-package/srv1cv83 ] && [ -f /usr/share/vvz-1csrv-postgres-8327/srv1cv83.default ]; then
+  install -d -m 0755 /etc/pgsql1c-8327-package
+  install -m 0644 /usr/share/vvz-1csrv-postgres-8327/srv1cv83.default /etc/pgsql1c-8327-package/srv1cv83
 fi
 
 pgsql1c_chown_host_data

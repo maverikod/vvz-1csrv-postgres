@@ -1,19 +1,19 @@
 # Packaged, isolated 1C 8.3.27.2214 stack. No source-checkout mounts.
-name: ${COMPOSE_PROJECT_NAME:-vvz-1csrv-postgres-8327}
+name: ${COMPOSE_PROJECT_NAME:-vvz-1csrv-postgres-8327-package}
 services:
   app:
     restart: unless-stopped
     image: ${VVZ_IMAGE:-docker.io/vasilyvz/vvz-1csrv-postgres:8.3.27.2214}
-    hostname: ${ONEC_HOSTNAME:-devel1c8327}
+    hostname: ${ONEC_HOSTNAME:-devel1c8327pkg}
     ports:
-      - "1640:1640"
-      - "1641:1641"
-      - "1660-1691:1660-1691"
+      - "1740:1740"
+      - "1741:1741"
+      - "1760-1791:1760-1791"
     environment:
       ONEC_VERSION: 8.3.27.2214
       PGDATA: /var/lib/pgpro/std-16/data
       INIT_PGDATA: "0"
-      PGSQL1C_DOCKER_SUBNET: ${PGSQL1C_DOCKER_SUBNET:-172.30.0.0/16}
+      PGSQL1C_DOCKER_SUBNET: ${PGSQL1C_DOCKER_SUBNET:-172.29.0.0/16}
       PGSQL1C_PGHBA_MODE: ${PGSQL1C_PGHBA_MODE:-managed}
       PGSQL1C_PGHBA_AUTH_METHOD: ${PGSQL1C_PGHBA_AUTH_METHOD:-md5}
     entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
@@ -25,23 +25,23 @@ services:
     device_cgroup_rules:
       - 'c 189:* rmw'
     volumes:
-      - ${PGSQL1C_VAR:-/var/pgsql1c-8327}/postgres:/var/lib/pgpro/std-16/data
-      - ${PGSQL1C_LOG:-/var/log/pgsql1c-8327}:/var/log/1cv8
-      - ${PGSQL1C_VAR:-/var/pgsql1c-8327}/1cv8:/home/usr1cv8/.1cv8
-      - ${PGSQL1C_VAR:-/var/pgsql1c-8327}/cache/cfstorage:/var/cfstorage
-      - ${PGSQL1C_VAR:-/var/pgsql1c-8327}/cache/app:/var/cache/1cv8
-      - ${PGSQL1C_ETC:-/etc/pgsql1c-8327}/conf.d:/var/lib/pgpro/std-16/data/conf.d
-      - ${PGSQL1C_BACKUP:-${PGSQL1C_VAR:-/var/pgsql1c-8327}/backups}:/var/backups/pgsql
-      - ${PGSQL1C_ETC:-/etc/pgsql1c-8327}/srv1cv83:/etc/default/srv1cv83:ro
+      - ${PGSQL1C_VAR:-/var/pgsql1c-8327-package}/postgres:/var/lib/pgpro/std-16/data
+      - ${PGSQL1C_LOG:-/var/log/pgsql1c-8327-package}:/var/log/1cv8
+      - ${PGSQL1C_VAR:-/var/pgsql1c-8327-package}/1cv8:/home/usr1cv8/.1cv8
+      - ${PGSQL1C_VAR:-/var/pgsql1c-8327-package}/cache/cfstorage:/var/cfstorage
+      - ${PGSQL1C_VAR:-/var/pgsql1c-8327-package}/cache/app:/var/cache/1cv8
+      - ${PGSQL1C_ETC:-/etc/pgsql1c-8327-package}/conf.d:/var/lib/pgpro/std-16/data/conf.d
+      - ${PGSQL1C_BACKUP:-${PGSQL1C_VAR:-/var/pgsql1c-8327-package}/backups}:/var/backups/pgsql
+      - ${PGSQL1C_ETC:-/etc/pgsql1c-8327-package}/srv1cv83:/etc/default/srv1cv83:ro
       # Optional HASP configuration; uncomment only after nethasp.ini exists:
-      # - ${PGSQL1C_ETC:-/etc/pgsql1c-8327}/nethasp.ini:/opt/1cv8/conf/nethasp.ini:ro
+      # - ${PGSQL1C_ETC:-/etc/pgsql1c-8327-package}/nethasp.ini:/opt/1cv8/conf/nethasp.ini:ro
     networks:
       pgsql1c_8327_net:
-        ipv4_address: ${PGSQL1C_CONTAINER_IP:-172.30.0.2}
+        ipv4_address: ${PGSQL1C_CONTAINER_IP:-172.29.0.2}
 
 networks:
   pgsql1c_8327_net:
     driver: bridge
     ipam:
       config:
-        - subnet: ${PGSQL1C_DOCKER_SUBNET:-172.30.0.0/16}
+        - subnet: ${PGSQL1C_DOCKER_SUBNET:-172.29.0.0/16}

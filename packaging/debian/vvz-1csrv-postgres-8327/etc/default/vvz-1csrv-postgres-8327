@@ -6,6 +6,5 @@ VVZ_IMAGE=docker.io/vasilyvz/vvz-1csrv-postgres:8.3.27.2214
 # Порт PostgreSQL (5432) на хост не публикуется — только порты 1С (см. docker-compose.yml).
 # Подключение к БД с хоста: docker compose exec … или отдельный compose override при необходимости.
 
-# Имя узла контейнера = имя в реестре кластера 1С (reg_1641/*.lst).
-ONEC_HOSTNAME=devel1c8327
-
+# Имя узла контейнера = имя в реестре кластера 1С (reg_1741/*.lst).
+ONEC_HOSTNAME=devel1c8327pkg
