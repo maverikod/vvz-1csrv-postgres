@@ -34,6 +34,7 @@ container_prefix() {
   case "$1" in
     "$OLD_CONTAINER") echo old ;;
     "$TARGET_CONTAINER") echo target ;;
+    "$DUAL_ACTIVE_CONTAINER") echo dualactive ;;
     "$MANUAL_CONTAINER") echo manual ;;
     *) exit 2 ;;
   esac
@@ -58,10 +59,17 @@ case "$cmd" in
           else
             put network_exists false
           fi
-        else put target_exists false; put target_running false; fi ;;
+        else
+          put target_exists false; put target_running false
+          put dualactive_exists false; put dualactive_running false
+          put network_owner_mode none
+        fi ;;
       start)
         event "systemctl start $1"; put "${p}_active" active
-        if [[ "$p" == old && "$(get systemctl_restore_fail)" == true ]]; then exit 46; fi
+        if [[ "$(get systemctl_restore_fail)" == true ]]; then exit 46; fi
+        if [[ "$p" == dual && "$(get docker_restore_fail)" == true ]]; then
+          put target_exists true; put target_running false; exit 0
+        fi
         if [[ "$p" == old ]]; then put old_exists true; put old_running true
         else put target_exists true; put target_running true; fi ;;
       enable) event "systemctl enable $1"; put "${p}_enabled" enabled ;;
@@ -92,9 +100,19 @@ case "$cmd" in
         esac
       elif [[ "$network_op" == inspect ]]; then
         [[ "$(get network_exists)" == true ]] || exit 1
-        printf '[{"Name":"%s","Driver":"%s","IPAM":{"Config":[{"Subnet":"%s","Gateway":"%s"}]},"Labels":{"com.docker.compose.project":"%s","com.docker.compose.network":"%s","com.docker.compose.config-hash":"%s","com.docker.compose.version":"%s"},"Containers":{}}]\n' \
+        owner_mode="$(get network_owner_mode)"
+        [[ "$(get network_conflict)" != true ]] || owner_mode=wrong
+        case "$owner_mode" in
+          none) containers='{}' ;;
+          dual) containers="{\"dual-id\":{\"Name\":\"$DUAL_ACTIVE_CONTAINER\",\"EndpointID\":\"dual-endpoint\",\"IPv4Address\":\"$NETWORK_IP/16\"}}" ;;
+          wrong) containers="{\"wrong-id\":{\"Name\":\"wrong-container\",\"EndpointID\":\"wrong-endpoint\",\"IPv4Address\":\"$NETWORK_IP/16\"}}" ;;
+          old) containers="{\"old-id\":{\"Name\":\"$OLD_CONTAINER\",\"EndpointID\":\"old-endpoint\",\"IPv4Address\":\"$NETWORK_IP/16\"}}" ;;
+          duplicate) containers="{\"dual-id\":{\"Name\":\"$DUAL_ACTIVE_CONTAINER\",\"EndpointID\":\"dual-endpoint\",\"IPv4Address\":\"$NETWORK_IP/16\"},\"other-id\":{\"Name\":\"wrong-container\",\"EndpointID\":\"other-endpoint\",\"IPv4Address\":\"$NETWORK_IP/16\"}}" ;;
+          *) exit 2 ;;
+        esac
+        printf '[{"Name":"%s","Driver":"%s","IPAM":{"Config":[{"Subnet":"%s","Gateway":"%s"}]},"Labels":{"com.docker.compose.project":"%s","com.docker.compose.network":"%s","com.docker.compose.config-hash":"%s","com.docker.compose.version":"%s"},"Containers":%s}]\n' \
           "$NETWORK" "$(get network_driver)" "$(get network_subnet)" "$(get network_gateway)" \
-          "$(get network_compose_project)" "$(get network_compose_name)" "$(get network_compose_hash)" "$(get network_compose_version)"
+          "$(get network_compose_project)" "$(get network_compose_name)" "$(get network_compose_hash)" "$(get network_compose_version)" "$containers"
       elif [[ "$network_op" == create ]]; then
         event "docker network create $*"
         while (($#)); do
@@ -154,12 +172,15 @@ case "$cmd" in
       [[ "$(get dpkg_fail)" != true ]] || exit 42
       put package_version 1.0.19
       put target_exists true; put target_running true; put dual_active active
+      put dualactive_exists true; put dualactive_running "$(get postinstall_dual_running)"
+      put network_owner_mode "$(get postinstall_owner)"
       printf 'changed-by-new-package\n' >"$OLD_VAR/data-marker"
       [[ "$(get postinst_fail)" != true ]] || exit 43
     else
       [[ "$(get rollback_dpkg_fail)" != true ]] || exit 45
       put package_version 1.0.18
       put target_exists true; put target_running true; put dual_active active
+      put dualactive_exists false; put dualactive_running false; put network_owner_mode none
     fi
     ;;
   dpkg-query)
@@ -211,8 +232,9 @@ new_case() {
   : >"$SIM_STATE/events"
   local pair
   for pair in \
-    'old_enabled enabled' 'old_active active' 'old_exists true' 'old_running false' \
-    'dual_enabled disabled' 'dual_active inactive' 'target_exists false' 'target_running false' \
+    'old_enabled enabled' 'old_active inactive' 'old_exists true' 'old_running false' \
+    'dual_enabled enabled' 'dual_active active' 'target_exists true' 'target_running true' \
+    'dualactive_exists false' 'dualactive_running false' 'postinstall_owner dual' 'postinstall_dual_running true' 'network_owner_mode none' \
     'manual_exists true' 'manual_running false' 'network_exists true' 'network_conflict false' \
     'network_driver bridge' 'network_subnet 10.23.0.0/16' 'network_gateway 10.23.0.1' \
     'network_compose_project vvz-1csrv-postgres' 'network_compose_name pgsql1c_net' \
@@ -277,6 +299,7 @@ run_helper() {
     VVZ_VERIFY_CMD="$CASE/verify" VVZ_OLD_CLI="$CASE/old-cli" VVZ_DUAL_CLI="$CASE/dual-cli" \
     VVZ_OLD_UNIT=old.service VVZ_DUAL_UNIT=dual.service \
     VVZ_OLD_CONTAINER=old-container VVZ_TARGET_CONTAINER=target-container VVZ_MANUAL_CONTAINER=manual-container \
+    VVZ_DUAL_ACTIVE_CONTAINER=dual-active-container DUAL_ACTIVE_CONTAINER=dual-active-container \
     VVZ_NETWORK=test-network VVZ_NETWORK_IP=10.23.0.2 \
     VVZ_NETWORK_SUBNET=10.23.0.0/16 VVZ_NETWORK_GATEWAY=10.23.0.1 \
     VVZ_OLD_STACK_DEFAULT="$CASE/old-stack-default" VVZ_OLD_COMPOSE="$CASE/old-compose.yml" \
@@ -294,7 +317,7 @@ state_tuple() {
 
 assert_original_state() {
   assert_eq "$(state_tuple)" \
-    'old_enabled=enabled;old_active=active;old_exists=true;old_running=false;dual_enabled=disabled;dual_active=inactive;target_exists=false;target_running=false;network_exists=true;network_driver=bridge;network_subnet=10.23.0.0/16;network_gateway=10.23.0.1;' \
+    'old_enabled=enabled;old_active=inactive;old_exists=true;old_running=false;dual_enabled=enabled;dual_active=active;target_exists=true;target_running=true;network_exists=true;network_driver=bridge;network_subnet=10.23.0.0/16;network_gateway=10.23.0.1;' \
     'original service/container state'
   assert_eq "$(cat "$CASE/var/data-marker")" original 'original data marker'
 }
@@ -331,6 +354,32 @@ expect_transaction_failure checksum checksum_fail
 expect_transaction_failure dpkg dpkg_fail
 expect_transaction_failure postinst postinst_fail
 
+expect_ownership_failure() {
+  local name="$1" owner="$2"
+  new_case "$name"
+  printf '%s\n' "$owner" >"$SIM_STATE/postinstall_owner"
+  if run_helper >"$CASE/out" 2>&1; then fail "$name unexpectedly succeeded"; fi
+  assert_original_state
+  assert_no_ready_marker
+  [[ ! -e "$CASE/lib/state/manual-recovery-required" ]] || fail "$name recovery unexpectedly required manual intervention"
+  grep -q 'Active endpoint ownership' "$CASE/out" || fail "$name did not report endpoint ownership failure"
+  grep -q "dpkg -i $(basename "$ROLLBACK_DEB")" "$SIM_STATE/events" || fail "$name did not restore the rollback package"
+  echo "PASS $name"
+}
+
+expect_ownership_failure endpoint-owner-missing none
+expect_ownership_failure endpoint-owner-wrong wrong
+expect_ownership_failure endpoint-owner-duplicate duplicate
+expect_ownership_failure endpoint-owner-old old
+
+new_case endpoint-owner-nonrunning
+printf 'false\n' >"$SIM_STATE/postinstall_dual_running"
+if run_helper >"$CASE/out" 2>&1; then fail 'non-running endpoint owner unexpectedly succeeded'; fi
+assert_original_state
+assert_no_ready_marker
+grep -q 'Active endpoint ownership' "$CASE/out" || fail 'non-running endpoint owner did not report ownership failure'
+echo 'PASS endpoint-owner-nonrunning'
+
 new_case network-contract-conflict
 printf 'true\n' >"$SIM_STATE/conflict_after_old_stop"
 set +e
@@ -364,6 +413,8 @@ if run_helper >"$CASE/out" 2>&1; then fail 'readiness unexpectedly succeeded'; f
 assert_original_state
 assert_no_ready_marker
 grep -q "dpkg -i $(basename "$ROLLBACK_DEB")" "$SIM_STATE/events" || fail "readiness failure did not reinstall rollback package; output: $(tr '\n' ';' <"$CASE/out"); events: $(tr '\n' ';' <"$SIM_STATE/events")"
+! grep -q '^systemctl start old.service$' "$SIM_STATE/events" || fail 'stopped old runtime was started during recovery'
+grep -q '^systemctl start dual.service$' "$SIM_STATE/events" || fail 'originally running target runtime was not restarted during recovery'
 echo 'PASS readiness'
 
 expect_manual_recovery() {
@@ -448,7 +499,8 @@ printf 'pre-rollback-data\n' >"$CASE/var/data-marker"
 before="$(state_tuple)"
 printf 'true\n' >"$SIM_STATE/primary_restore_fail_once"
 if run_helper --rollback "$CASE/snapshot" >"$CASE/rollback-out" 2>&1; then fail 'primary rollback restore failure unexpectedly succeeded'; fi
-assert_eq "$(state_tuple)" "$before" 'failed rollback state restoration'
+normalized_before="${before/old_active=active/old_active=inactive}"
+assert_eq "$(state_tuple)" "$normalized_before" 'failed rollback safe stopped-runtime restoration'
 assert_eq "$(cat "$CASE/var/data-marker")" pre-rollback-data 'failed rollback rescue data restoration'
 assert_no_ready_marker
 [[ ! -e "$CASE/lib/state/manual-recovery-required" ]] || fail "successful rollback rescue incorrectly requested manual recovery: $(tr '\n' ';' <"$CASE/lib/state/manual-recovery-required"); output: $(tr '\n' ';' <"$CASE/rollback-out")"

@@ -18,6 +18,7 @@ OLD_UNIT="${VVZ_OLD_UNIT:-pgsql1c-stack.service}"
 DUAL_UNIT="${VVZ_DUAL_UNIT:-pgsql1c-stack-8327.service}"
 OLD_CONTAINER="${VVZ_OLD_CONTAINER:-vvz-1csrv-postgres-app-1}"
 TARGET_CONTAINER="${VVZ_TARGET_CONTAINER:-vvz-1csrv-postgres-8327-package-app-1}"
+DUAL_ACTIVE_CONTAINER="${VVZ_DUAL_ACTIVE_CONTAINER:-vvz-1csrv-postgres-8327-app-1}"
 MANUAL_CONTAINER="${VVZ_MANUAL_CONTAINER:-vvz-1csrv-postgres-8327-app-1}"
 NETWORK="${VVZ_NETWORK:-vvz-1csrv-postgres_pgsql1c_net}"
 NETWORK_IP="${VVZ_NETWORK_IP:-172.31.0.2}"
@@ -49,9 +50,35 @@ network_driver() { docker network inspect -f '{{.Driver}}' "$NETWORK" 2>/dev/nul
 network_subnet() { docker network inspect -f '{{(index .IPAM.Config 0).Subnet}}' "$NETWORK" 2>/dev/null; }
 network_gateway() { docker network inspect -f '{{(index .IPAM.Config 0).Gateway}}' "$NETWORK" 2>/dev/null; }
 network_label() { docker network inspect -f "{{index .Labels \"$1\"}}" "$NETWORK" 2>/dev/null; }
-network_ip_in_use() {
-  docker network inspect -f '{{range .Containers}}{{println .IPv4Address}}{{end}}' "$NETWORK" 2>/dev/null \
-    | grep -q "^${NETWORK_IP//./\\.}/"
+network_has_named_endpoint() {
+  local container="$1"
+  docker network inspect "$NETWORK" | python3 -c '
+import json, sys
+name = sys.argv[1]
+network = json.load(sys.stdin)[0]
+raise SystemExit(0 if any(item.get("Name") == name and item.get("EndpointID") for item in (network.get("Containers") or {}).values()) else 1)
+' "$container"
+}
+network_has_no_target_endpoint() {
+  docker network inspect "$NETWORK" | python3 -c '
+import json, sys
+ip = sys.argv[1]
+network = json.load(sys.stdin)[0]
+owners = [item for item in (network.get("Containers") or {}).values() if (item.get("IPv4Address") or "").split("/")[0] == ip and item.get("EndpointID")]
+raise SystemExit(0 if not owners else 1)
+' "$NETWORK_IP"
+}
+dual_endpoint_ownership_matches() {
+  network_contract_matches || return 1
+  ! network_has_named_endpoint "$OLD_CONTAINER" || return 1
+  docker network inspect "$NETWORK" | python3 -c '
+import json, sys
+ip, expected = sys.argv[1:3]
+network = json.load(sys.stdin)[0]
+owners = [item for item in (network.get("Containers") or {}).values() if (item.get("IPv4Address") or "").split("/")[0] == ip and item.get("EndpointID")]
+raise SystemExit(0 if len(owners) == 1 and owners[0].get("Name") == expected else 1)
+' "$NETWORK_IP" "$DUAL_ACTIVE_CONTAINER" || return 1
+  container_running "$DUAL_ACTIVE_CONTAINER"
 }
 package_version() { dpkg-query -W -f='${Version}' "$PACKAGE_NAME" 2>/dev/null || true; }
 identity_value() { awk -F= -v key="$1" '$1 == key {sub(/^[^=]*=/, ""); print; exit}' "$2"; }
@@ -155,14 +182,12 @@ restore_runtime_state() {
   local unit="$1" active="$2" container="$3" existed="$4" running="$5"
   systemctl stop "$unit" >/dev/null 2>&1 || return 1
   systemctl reset-failed "$unit" >/dev/null 2>&1 || return 1
-  if [[ "$active" == active ]]; then
+  if [[ "$running" == true ]]; then
     systemctl start "$unit" >/dev/null 2>&1 || return 1
-    if [[ "$running" != true ]]; then docker stop "$container" >/dev/null 2>&1 || return 1; fi
   elif [[ "$existed" == true ]]; then
-    systemctl start "$unit" >/dev/null 2>&1 || return 1
-    docker stop "$container" >/dev/null 2>&1 || return 1
-    systemctl stop "$unit" >/dev/null 2>&1 || return 1
-    if [[ "$container" == "$OLD_CONTAINER" && -x "$OLD_CLI" ]]; then
+    if container_exists "$container"; then
+      ! container_running "$container" || return 1
+    elif [[ "$container" == "$OLD_CONTAINER" && -x "$OLD_CLI" ]]; then
       "$OLD_CLI" create --no-build app >/dev/null 2>&1 || return 1
     elif [[ "$container" == "$TARGET_CONTAINER" && -x "$DUAL_CLI" ]]; then
       "$DUAL_CLI" create --no-build app >/dev/null 2>&1 || return 1
@@ -170,7 +195,11 @@ restore_runtime_state() {
       return 1
     fi
   fi
-  [[ "$(unit_active_state "$unit")" == "$active" ]] || return 1
+  if [[ "$running" == true ]]; then
+    [[ "$(unit_active_state "$unit")" == active ]] || return 1
+  else
+    [[ "$(unit_active_state "$unit")" != active ]] || return 1
+  fi
   container_state_matches "$container" "$existed" "$running"
 }
 
@@ -208,8 +237,8 @@ capture_original_state() {
 }
 
 original_state_matches() {
-  [[ "$(unit_active_state "$OLD_UNIT")" == "$OLD_ACTIVE" ]] || return 1
-  [[ "$(unit_active_state "$DUAL_UNIT")" == "$DUAL_ACTIVE" ]] || return 1
+  if [[ "$OLD_RUNNING" == true ]]; then [[ "$(unit_active_state "$OLD_UNIT")" == active ]] || return 1; else [[ "$(unit_active_state "$OLD_UNIT")" != active ]] || return 1; fi
+  if [[ "$TARGET_RUNNING" == true ]]; then [[ "$(unit_active_state "$DUAL_UNIT")" == active ]] || return 1; else [[ "$(unit_active_state "$DUAL_UNIT")" != active ]] || return 1; fi
   enabled_state_matches "$OLD_UNIT" "$OLD_ENABLED" || return 1
   enabled_state_matches "$DUAL_UNIT" "$DUAL_ENABLED" || return 1
   container_state_matches "$OLD_CONTAINER" "$OLD_EXISTS" "$OLD_RUNNING" || return 1
@@ -357,7 +386,7 @@ recover_stopped_old_runtime() {
   ! container_running "$OLD_CONTAINER" || return 1
   # Docker does not expose stopped endpoints in .Containers. The static IP is
   # retained in container metadata but remains free for the active dual stack.
-  ! network_ip_in_use
+  network_has_no_target_endpoint
 }
 
 old_compose_contract_matches() {
@@ -417,7 +446,7 @@ if [[ "${1:-}" == --recover-runtime ]]; then
   recover_stopped_old_runtime || { echo "Could not recreate the old stopped Docker runtime" >&2; exit 1; }
   old_container_contract_matches || { echo "Recreated old container contract verification failed" >&2; exit 1; }
   network_contract_matches || { echo "Recreated old network contract verification failed" >&2; exit 1; }
-  ! network_ip_in_use || { echo "Stopped rollback artifact unexpectedly reserves $NETWORK_IP" >&2; exit 1; }
+  network_has_no_target_endpoint || { echo "An active endpoint unexpectedly owns $NETWORK_IP during stopped-runtime recovery" >&2; exit 1; }
   rm -f "$MANUAL_MARKER"
   echo "Manual runtime recovery complete; old container is preserved and stopped"
   exit 0
@@ -506,7 +535,7 @@ container_running "$OLD_CONTAINER" && { echo "Preserved old container must be st
 container_running "$MANUAL_CONTAINER" && { echo "Manual 8.3.27 container must be stopped" >&2; exit 1; }
 docker network inspect "$NETWORK" >/dev/null
 capture_network_contract
-if network_ip_in_use; then
+if ! network_has_no_target_endpoint; then
   echo "IP $NETWORK_IP is attached to an active endpoint" >&2
   exit 1
 fi
@@ -571,7 +600,7 @@ restore_enabled_state "$OLD_UNIT" disabled
 if [[ "$OLD_EXISTS" == true ]] && ! container_exists "$OLD_CONTAINER"; then "$OLD_CLI" create --no-build app >/dev/null; fi
 container_exists "$OLD_CONTAINER" || { echo "Preserved old stopped container was not recreated" >&2; exit 1; }
 container_running "$OLD_CONTAINER" && { echo "Preserved old container unexpectedly running" >&2; exit 1; }
-network_ip_in_use && { echo "Preserved stopped container unexpectedly reserves $NETWORK_IP" >&2; exit 1; }
+dual_endpoint_ownership_matches || { echo "Active endpoint ownership for $NETWORK_IP is not exactly the verified dual container" >&2; exit 1; }
 [[ "$(package_version)" == 1.0.19 ]] || { echo "Installed package version is not 1.0.19" >&2; exit 1; }
 snapshot_verify "$BACKUP" || { echo "Transition snapshot verification failed after install" >&2; exit 1; }
 cleanup_transaction_markers
