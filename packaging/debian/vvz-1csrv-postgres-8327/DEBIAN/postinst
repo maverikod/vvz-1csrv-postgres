@@ -1,0 +1,96 @@
+#!/bin/bash
+set -e
+VAR=/var/pgsql1c-8327
+
+LOCALE="ru_UA.utf8"
+if [ -f /usr/share/debconf/confmodule ]; then
+  # shellcheck source=/dev/null
+  . /usr/share/debconf/confmodule
+  if [ -f /usr/share/vvz-1csrv-postgres-8327/debconf/locale.template ]; then
+    debconf-loadtemplate vvz-1csrv-postgres-8327 /usr/share/vvz-1csrv-postgres-8327/debconf/locale.template 2>/dev/null || true
+  fi
+  db_version 2.0 || true
+  if [ "$1" = "configure" ] && [ -z "$2" ]; then
+    db_input medium vvz-1csrv-postgres-8327/default-locale || true
+  fi
+  db_go || true
+  db_get vvz-1csrv-postgres-8327/default-locale || true
+  if [ -n "${RET:-}" ]; then
+    LOCALE="$RET"
+  fi
+fi
+
+case "$LOCALE" in
+  ru_UA.utf8|ru_RU.utf8|uk_UA.utf8) ;;
+  *) LOCALE=ru_UA.utf8 ;;
+esac
+
+# Образ проверяется и при необходимости скачивается в preinst (до распаковки пакета).
+
+# --- Каталоги, пользователи, конфиги, initdb, сервисы ---
+LIB=/usr/libexec/vvz-1csrv-postgres-8327
+# shellcheck source=/dev/null
+. "${LIB}/pgsql1c-host-users.sh"
+
+pgsql1c_ensure_host_users
+pgsql1c_migrate_legacy_ownership
+
+if [ ! -f /etc/pgsql1c-8327/srv1cv83 ] && [ -f /usr/share/vvz-1csrv-postgres-8327/srv1cv83.default ]; then
+  install -d -m 0755 /etc/pgsql1c-8327
+  install -m 0644 /usr/share/vvz-1csrv-postgres-8327/srv1cv83.default /etc/pgsql1c-8327/srv1cv83
+fi
+
+pgsql1c_chown_host_data
+
+TEMPLATE=/usr/share/vvz-1csrv-postgres-8327/pgsql1c-stack-8327.default
+CFG=/etc/default/pgsql1c-stack-8327
+
+if [ ! -f "$CFG" ] && [ -f "$TEMPLATE" ]; then
+  cp -a "$TEMPLATE" "$CFG"
+fi
+if [ -f "$CFG" ]; then
+  if ! bash -c 'set -a; . "$1"; set +a' _ "$CFG" 2>/dev/null; then
+    echo "vvz-1csrv-postgres-8327: повреждён $CFG — восстановление из $TEMPLATE" >&2
+    if [ ! -f "$TEMPLATE" ]; then
+      echo "vvz-1csrv-postgres-8327: нет файла $TEMPLATE" >&2
+      exit 1
+    fi
+    cp -a "$TEMPLATE" "$CFG"
+  fi
+fi
+
+if [ -f "$CFG" ]; then
+  if grep -q '^INITDB_LOCALE=' "$CFG" 2>/dev/null; then
+    tmp=$(mktemp)
+    if awk -v loc="$LOCALE" '/^INITDB_LOCALE=/ { print "INITDB_LOCALE=" loc; next } { print }' "$CFG" > "$tmp"; then
+      chmod --reference="$CFG" "$tmp" 2>/dev/null || true
+      mv "$tmp" "$CFG"
+    else
+      rm -f "$tmp"
+      exit 1
+    fi
+  else
+    echo "INITDB_LOCALE=${LOCALE}" >> "$CFG"
+  fi
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload 2>/dev/null || true
+fi
+
+if [ -x /usr/bin/vvz-1csrv-postgres-8327 ] && [ ! -f "${VAR}/postgres/PG_VERSION" ]; then
+  if ! /usr/bin/vvz-1csrv-postgres-8327 run --rm -e INIT_PGDATA=1 -e "INITDB_LOCALE=${LOCALE}" app true; then
+    echo "vvz-1csrv-postgres-8327: не удалось выполнить первичную инициализацию каталога данных." >&2
+    exit 1
+  fi
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl enable pgsql1c-stack-8327.service 2>/dev/null || true
+  if ! systemctl start pgsql1c-stack-8327.service; then
+    echo "vvz-1csrv-postgres-8327: не удалось запустить pgsql1c-stack-8327.service." >&2
+    echo "vvz-1csrv-postgres-8327: см. sudo journalctl -u pgsql1c-stack-8327.service -b --no-pager" >&2
+    exit 1
+  fi
+fi
+exit 0

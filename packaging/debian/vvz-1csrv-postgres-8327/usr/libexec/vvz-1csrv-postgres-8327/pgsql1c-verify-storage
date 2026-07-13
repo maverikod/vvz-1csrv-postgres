@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# Проверка: данные/логи/конфиги на хосте, bind-mount в контейнер, владельцы каталогов.
+set -euo pipefail
+
+LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${LIB}/pgsql1c-host-users.sh" ]]; then
+  # shellcheck source=pgsql1c-host-users.sh
+  source "${LIB}/pgsql1c-host-users.sh"
+else
+  echo "pgsql1c-verify-storage: не найден pgsql1c-host-users.sh рядом со скриптом" >&2
+  exit 1
+fi
+
+ERR=0
+WARN=0
+
+fail() { echo "FAIL: $*" >&2; ERR=$((ERR + 1)); }
+warn() { echo "WARN: $*" >&2; WARN=$((WARN + 1)); }
+ok() { echo "OK:   $*"; }
+
+check_owner_mode() {
+  local path="$1" exp_uid="$2" exp_gid="$3" exp_mode="$4"
+  [[ -e "$path" ]] || { fail "нет каталога/файла ${path}"; return; }
+  local u g m un gn
+  u="$(stat -c '%u' "$path")"
+  g="$(stat -c '%g' "$path")"
+  m="$(stat -c '%a' "$path")"
+  un="$(getent passwd "$u" | cut -d: -f1 2>/dev/null || echo "uid${u}")"
+  gn="$(getent group "$g" | cut -d: -f1 2>/dev/null || echo "gid${g}")"
+  if [[ "$u" != "$exp_uid" || "$g" != "$exp_gid" ]]; then
+    fail "${path}: владелец ${un}:${gn} (${u}:${g}), ожидается uid ${exp_uid}:gid ${exp_gid}"
+  elif [[ "$m" != "$exp_mode" ]]; then
+    warn "${path}: права ${m}, ожидается ${exp_mode}"
+  else
+    ok "${path} ${un}:${gn} ${m}"
+  fi
+}
+
+pgsql1c_load_host_ids
+
+echo "=== Пользователи на хосте (UID/GID = образ контейнера) ==="
+for u in "$PGSQL1C_1C_USER" "$PGSQL1C_PG_USER"; do
+  if getent passwd "$u" >/dev/null 2>&1; then
+    ok "пользователь ${u} ($(getent passwd "$u" | cut -d: -f3,4))"
+  else
+    fail "нет системного пользователя ${u} (запустите postinst или docker-data-init.sh от root)"
+  fi
+done
+
+VAR="${PGSQL1C_VAR:-/var/pgsql1c-8327}"
+LOG="${PGSQL1C_LOG:-/var/log/pgsql1c-8327}"
+ETC="${PGSQL1C_ETC:-/etc/pgsql1c-8327}"
+BACKUP="${PGSQL1C_BACKUP:-${VAR}/backups}"
+
+echo ""
+echo "=== Каталоги на хосте ==="
+check_owner_mode "$VAR/postgres" "$PGSQL1C_PG_UID" "$PGSQL1C_PG_GID" "700"
+check_owner_mode "$BACKUP" "$PGSQL1C_PG_UID" "$PGSQL1C_PG_GID" "750"
+if [[ -d "$VAR/1cv8" ]]; then
+  u="$(stat -c '%u' "$VAR/1cv8")"
+  g="$(stat -c '%g' "$VAR/1cv8")"
+  if [[ "$u" == "$PGSQL1C_1C_UID" && "$g" == "$PGSQL1C_1C_GID" ]]; then
+    ok "${VAR}/1cv8 uid ${u}:gid ${g} $(stat -c '%a' "$VAR/1cv8")"
+  else
+    fail "${VAR}/1cv8: uid ${u}:gid ${g}, ожидается ${PGSQL1C_1C_UID}:${PGSQL1C_1C_GID}"
+  fi
+else
+  fail "нет каталога ${VAR}/1cv8"
+fi
+check_owner_mode "$LOG" "$PGSQL1C_PG_UID" "$PGSQL1C_PG_GID" "750"
+check_owner_mode "$ETC/conf.d" "$PGSQL1C_PG_UID" "$PGSQL1C_PG_GID" "750"
+
+if [[ -f "${VAR}/postgres/PG_VERSION" ]]; then
+  ok "PGDATA на хосте: ${VAR}/postgres/PG_VERSION"
+elif [[ "$(id -u)" -eq 0 ]] && [[ -f "${VAR}/postgres/PG_VERSION" ]]; then
+  ok "PGDATA на хосте: ${VAR}/postgres/PG_VERSION"
+else
+  warn "нет доступа к ${VAR}/postgres/PG_VERSION с текущими правами (для проверки PGDATA — root)"
+fi
+
+if [[ -f "${ETC}/srv1cv83" ]]; then
+  ok "конфиг 1С на хосте: ${ETC}/srv1cv83"
+else
+  warn "нет ${ETC}/srv1cv83 (будет создан при установке пакета)"
+fi
+
+COMPOSE_DIR="${COMPOSE_PROJECT_DIR:-/usr/share/vvz-1csrv-postgres-8327}"
+if [[ ! -f "${COMPOSE_DIR}/docker-compose.yml" ]] && [[ -f "${LIB}/../docker-compose.yml" ]]; then
+  COMPOSE_DIR="$(cd "${LIB}/.." && pwd)"
+fi
+
+echo ""
+echo "=== Bind-mount в контейнере ==="
+if ! docker info >/dev/null 2>&1; then
+  warn "Docker недоступен — проверка mount пропущена"
+elif [[ -z "$(docker compose -f "${COMPOSE_DIR}/docker-compose.yml" ps --status running -q app 2>/dev/null || true)" ]]; then
+  warn "контейнер app не запущен — проверка mount пропущена"
+else
+  declare -A EXPECT=(
+    ["/var/lib/pgpro/std-16/data"]="${VAR}/postgres"
+    ["/var/log/1cv8"]="${LOG}"
+    ["/home/usr1cv8/.1cv8"]="${VAR}/1cv8"
+    ["/var/lib/pgpro/std-16/data/conf.d"]="${ETC}/conf.d"
+    ["/var/backups/pgsql"]="${BACKUP}"
+    ["/etc/default/srv1cv83"]="${ETC}/srv1cv83"
+  )
+  for dest in "${!EXPECT[@]}"; do
+    if docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T app mountpoint -q "$dest" 2>/dev/null; then
+      src="$(docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T app findmnt -n -o SOURCE --target "$dest" 2>/dev/null | head -1)"
+      ok "${dest} смонтирован (${src:-bind})"
+    else
+      fail "${dest} не mount — данные могут остаться в слое контейнера"
+    fi
+  done
+
+  if docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T app test -f /var/lib/pgpro/std-16/data/PG_VERSION; then
+    ok "PG_VERSION виден внутри контейнера"
+  else
+    fail "нет PG_VERSION в PGDATA контейнера"
+  fi
+fi
+
+echo ""
+if [[ "$ERR" -gt 0 ]]; then
+  echo "Итог: ошибки (${ERR}), предупреждения (${WARN})" >&2
+  exit 1
+fi
+echo "Итог: проверка пройдена (предупреждений: ${WARN})"
+exit 0
