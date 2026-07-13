@@ -16,22 +16,22 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-# Должно совпадать с VVZ_IMAGE по умолчанию в etc/default/vvz-1csrv-postgres-8327 внутри .deb
-VVZ_IMAGE=docker.io/vasilyvz/vvz-1csrv-postgres:8.3.27.2214
-if [ -f /etc/default/vvz-1csrv-postgres-8327 ]; then
-  # shellcheck disable=SC1091
-  . /etc/default/vvz-1csrv-postgres-8327 2>/dev/null || true
-fi
-VVZ_IMAGE="${VVZ_IMAGE:-docker.io/vasilyvz/vvz-1csrv-postgres:8.3.27.2214}"
+VVZ_IMAGE=docker.io/vasilyvz/vvz-1csrv-postgres:8.3.27.2214-dual-8.3.19.1351-r1@sha256:386ecbad5e5c709f589668aed5aa657c5f570f36a675567ce5b8aab75af67c23
 
-if docker image inspect "$VVZ_IMAGE" >/dev/null 2>&1; then
-  echo "vvz-1csrv-postgres-8327: образ $VVZ_IMAGE уже есть локально." >&2
-else
-  echo "vvz-1csrv-postgres-8327: образ $VVZ_IMAGE не найден локально, загрузка с реестра (до установки файлов пакета)..." >&2
-  if ! docker pull "$VVZ_IMAGE"; then
-    echo "vvz-1csrv-postgres-8327: не удалось загрузить образ $VVZ_IMAGE. Установка прервана." >&2
-    exit 1
-  fi
-fi
+echo "vvz-1csrv-postgres-8327: unconditional pull of pinned dual image." >&2
+docker pull "$VVZ_IMAGE" || {
+  echo "vvz-1csrv-postgres-8327: pinned image pull failed." >&2
+  exit 1
+}
+docker image inspect "$VVZ_IMAGE" >/dev/null
+docker run --rm --entrypoint /bin/sh "$VVZ_IMAGE" -ec '
+  test -x /opt/1cv8/x86_64/8.3.19.1351/ragent
+  test -x /opt/1cv8/x86_64/8.3.19.1351/rmngr
+  test -x /opt/1cv8/x86_64/8.3.19.1351/rphost
+  test -x /opt/1cv8/x86_64/8.3.27.2214/ragent
+  test -x /opt/1cv8/x86_64/8.3.27.2214/rmngr
+  test -x /opt/1cv8/x86_64/8.3.27.2214/rphost
+  test -x /usr/local/bin/start-stack-dual.sh
+'
 
 exit 0

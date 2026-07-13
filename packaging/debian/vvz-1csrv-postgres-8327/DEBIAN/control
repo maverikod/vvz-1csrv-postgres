@@ -1,12 +1,13 @@
 Package: vvz-1csrv-postgres-8327
-Version: 1.0.18
+Version: 1.0.19
 Section: misc
 Priority: optional
 Architecture: all
 Maintainer: vvz <vvz@localhost>
 Depends: docker.io | docker-ce, docker-compose-plugin | docker-compose-v2, debconf | debconf-2.0
 Recommends: ca-certificates, apt-utils, cron, bzip2
-Description: 1C:Enterprise 8.3.27 + Postgres Pro (isolated Docker Compose)
- Изолированный параллельный стек 1С 8.3.27.2214 и Postgres Pro в контейнере.
+Description: Dual 1C:Enterprise 8.3.19 and 8.3.27 + Postgres Pro
+ Один контейнер с независимыми серверами 8.3.19.1351 и 8.3.27.2214,
+ общим PostgreSQL и раздельными портами и реестрами кластеров.
  Образ контейнера загружается с Docker Hub (см. /etc/default/vvz-1csrv-postgres-8327).
  На пустой системе установка через apt подтягивает демон Docker и Compose v2 (см. Depends).

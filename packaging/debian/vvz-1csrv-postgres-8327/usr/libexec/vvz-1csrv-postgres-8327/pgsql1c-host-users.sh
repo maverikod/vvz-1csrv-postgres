@@ -69,9 +69,9 @@ pgsql1c_ensure_host_users() {
 
 pgsql1c_chown_host_data() {
   pgsql1c_load_host_ids
-  local var="${PGSQL1C_VAR:-/var/pgsql1c-8327-package}"
-  local log="${PGSQL1C_LOG:-/var/log/pgsql1c-8327-package}"
-  local etc="${PGSQL1C_ETC:-/etc/pgsql1c-8327-package}"
+  local var="${PGSQL1C_VAR:-/var/pgsql1c}"
+  local log="${PGSQL1C_LOG:-/var/log/pgsql1c}"
+  local etc="${PGSQL1C_ETC:-/etc/pgsql1c}"
   local backup="${PGSQL1C_BACKUP:-${var}/backups}"
 
   mkdir -p \
@@ -91,18 +91,20 @@ pgsql1c_chown_host_data() {
   chmod 0750 "$etc/conf.d"
   find "$etc/conf.d" -type f -exec chown "${PGSQL1C_PG_USER}:${PGSQL1C_PG_GROUP}" {} + 2>/dev/null || true
 
-  if [[ -f "${etc}/srv1cv83" ]]; then
-    chown root:root "${etc}/srv1cv83"
-    chmod 0644 "${etc}/srv1cv83"
-  fi
+  local cfg
+  for cfg in "${etc}/srv1cv83-8319" "${etc}/srv1cv83-8327"; do
+    [[ -f "$cfg" ]] || continue
+    chown root:root "$cfg"
+    chmod 0644 "$cfg"
+  done
 }
 
 # При обновлении с chown по «голым» 1000/1001 — перенос на именованных пользователей.
 pgsql1c_migrate_legacy_ownership() {
   pgsql1c_load_host_ids
-  local var="${PGSQL1C_VAR:-/var/pgsql1c-8327-package}"
-  local log="${PGSQL1C_LOG:-/var/log/pgsql1c-8327-package}"
-  local etc="${PGSQL1C_ETC:-/etc/pgsql1c-8327-package}"
+  local var="${PGSQL1C_VAR:-/var/pgsql1c}"
+  local log="${PGSQL1C_LOG:-/var/log/pgsql1c}"
+  local etc="${PGSQL1C_ETC:-/etc/pgsql1c}"
   local backup="${PGSQL1C_BACKUP:-${var}/backups}"
   local path owner
 

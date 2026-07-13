@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-VAR=/var/pgsql1c-8327-package
+VAR=/var/pgsql1c
 
 LOCALE="ru_UA.utf8"
 if [ -f /usr/share/debconf/confmodule ]; then
@@ -33,12 +33,31 @@ LIB=/usr/libexec/vvz-1csrv-postgres-8327
 . "${LIB}/pgsql1c-host-users.sh"
 
 pgsql1c_ensure_host_users
-pgsql1c_migrate_legacy_ownership
-
-if [ ! -f /etc/pgsql1c-8327-package/srv1cv83 ] && [ -f /usr/share/vvz-1csrv-postgres-8327/srv1cv83.default ]; then
-  install -d -m 0755 /etc/pgsql1c-8327-package
-  install -m 0644 /usr/share/vvz-1csrv-postgres-8327/srv1cv83.default /etc/pgsql1c-8327-package/srv1cv83
+if [ ! -f /var/lib/vvz-1csrv-postgres-8327/transition-ready ]; then
+  echo "vvz-1csrv-postgres-8327: transition snapshot marker is missing." >&2
+  echo "Run: sudo ./packaging/install-dual-1c.sh" >&2
+  exit 1
 fi
+SNAPSHOT_DIR="$(cat /var/lib/vvz-1csrv-postgres-8327/transition-ready)"
+if [ ! -f "$SNAPSHOT_DIR/old-storage.tar" ] || [ ! -f "$SNAPSHOT_DIR/SHA256SUMS" ] \
+  || ! (cd "$SNAPSHOT_DIR" && sha256sum -c SHA256SUMS >/dev/null); then
+  echo "vvz-1csrv-postgres-8327: transition snapshot verification failed." >&2
+  exit 1
+fi
+
+if docker inspect -f '{{.State.Running}}' vvz-1csrv-postgres-app-1 2>/dev/null | grep -qx true; then
+  echo "vvz-1csrv-postgres-8327: preserved old container is running; refusing shared-data startup." >&2
+  exit 1
+fi
+
+install -d -m 0755 /etc/pgsql1c
+for version in 8319 8327; do
+  dst="/etc/pgsql1c/srv1cv83-${version}"
+  src="/usr/share/vvz-1csrv-postgres-8327/srv1cv83-${version}.default"
+  if [ ! -f "$dst" ]; then
+    install -m 0644 "$src" "$dst"
+  fi
+done
 
 pgsql1c_chown_host_data
 
@@ -57,6 +76,26 @@ if [ -f "$CFG" ]; then
     fi
     cp -a "$TEMPLATE" "$CFG"
   fi
+fi
+# This package intentionally takes over the old storage/network contract.
+# Do not retain the isolated 1.0.18 defaults across the upgrade.
+cp -a "$TEMPLATE" "$CFG"
+
+IMAGE_CFG=/etc/default/vvz-1csrv-postgres-8327
+PINNED_IMAGE='docker.io/vasilyvz/vvz-1csrv-postgres:8.3.27.2214-dual-8.3.19.1351-r1@sha256:386ecbad5e5c709f589668aed5aa657c5f570f36a675567ce5b8aab75af67c23'
+if [ -f "$IMAGE_CFG" ]; then
+  tmp=$(mktemp)
+  awk -v image="$PINNED_IMAGE" '
+    /^VVZ_IMAGE=/ { print "VVZ_IMAGE=" image; image_found=1; next }
+    /^ONEC_HOSTNAME=/ { print "ONEC_HOSTNAME=devel1c"; host_found=1; next }
+    { print }
+    END {
+      if (!image_found) print "VVZ_IMAGE=" image
+      if (!host_found) print "ONEC_HOSTNAME=devel1c"
+    }
+  ' "$IMAGE_CFG" >"$tmp"
+  chmod --reference="$IMAGE_CFG" "$tmp" 2>/dev/null || true
+  mv "$tmp" "$IMAGE_CFG"
 fi
 
 if [ -f "$CFG" ]; then
@@ -78,11 +117,9 @@ if command -v systemctl >/dev/null 2>&1; then
   systemctl daemon-reload 2>/dev/null || true
 fi
 
-if [ -x /usr/bin/vvz-1csrv-postgres-8327 ] && [ ! -f "${VAR}/postgres/PG_VERSION" ]; then
-  if ! /usr/bin/vvz-1csrv-postgres-8327 run --rm -e INIT_PGDATA=1 -e "INITDB_LOCALE=${LOCALE}" app true; then
-    echo "vvz-1csrv-postgres-8327: не удалось выполнить первичную инициализацию каталога данных." >&2
-    exit 1
-  fi
+if [ ! -f "${VAR}/postgres/PG_VERSION" ]; then
+  echo "vvz-1csrv-postgres-8327: old PostgreSQL PGDATA is missing; refusing initialization." >&2
+  exit 1
 fi
 
 if command -v systemctl >/dev/null 2>&1; then
@@ -92,5 +129,19 @@ if command -v systemctl >/dev/null 2>&1; then
     echo "vvz-1csrv-postgres-8327: см. sudo journalctl -u pgsql1c-stack-8327.service -b --no-pager" >&2
     exit 1
   fi
+  ready=0
+  for _ in $(seq 1 90); do
+    if /usr/libexec/vvz-1csrv-postgres-8327/pgsql1c-verify-storage >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+    sleep 1
+  done
+  if [ "$ready" -ne 1 ]; then
+    /usr/libexec/vvz-1csrv-postgres-8327/pgsql1c-verify-storage || true
+    echo "vvz-1csrv-postgres-8327: dual runtime readiness failed." >&2
+    exit 1
+  fi
+  rm -f /var/lib/vvz-1csrv-postgres-8327/transition-ready
 fi
 exit 0

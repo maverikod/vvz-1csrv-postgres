@@ -29,14 +29,14 @@ if [[ -z "${COMPOSE_PROJECT_DIR:-}" ]]; then
   fi
 fi
 SHARE="$COMPOSE_PROJECT_DIR"
-export PGSQL1C_VAR="${PGSQL1C_VAR:-/var/pgsql1c-8327-package}"
-export PGSQL1C_LOG="${PGSQL1C_LOG:-/var/log/pgsql1c-8327-package}"
-export PGSQL1C_ETC="${PGSQL1C_ETC:-/etc/pgsql1c-8327-package}"
-export PGSQL1C_DOCKER_SUBNET="${PGSQL1C_DOCKER_SUBNET:-172.29.0.0/16}"
-export PGSQL1C_CONTAINER_IP="${PGSQL1C_CONTAINER_IP:-172.29.0.2}"
+export PGSQL1C_VAR="${PGSQL1C_VAR:-/var/pgsql1c}"
+export PGSQL1C_LOG="${PGSQL1C_LOG:-/var/log/pgsql1c}"
+export PGSQL1C_ETC="${PGSQL1C_ETC:-/etc/pgsql1c}"
+export PGSQL1C_DOCKER_SUBNET="${PGSQL1C_DOCKER_SUBNET:-172.31.0.0/16}"
+export PGSQL1C_CONTAINER_IP="${PGSQL1C_CONTAINER_IP:-172.31.0.2}"
 export PGSQL1C_PGHBA_MODE="${PGSQL1C_PGHBA_MODE:-managed}"
-export VVZ_IMAGE="${VVZ_IMAGE:-docker.io/vasilyvz/vvz-1csrv-postgres:8.3.27.2214}"
-export ONEC_HOSTNAME="${ONEC_HOSTNAME:-devel1c8327pkg}"
+export VVZ_IMAGE="${VVZ_IMAGE:-docker.io/vasilyvz/vvz-1csrv-postgres:8.3.27.2214-dual-8.3.19.1351-r1@sha256:386ecbad5e5c709f589668aed5aa657c5f570f36a675567ce5b8aab75af67c23}"
+export ONEC_HOSTNAME="${ONEC_HOSTNAME:-devel1c}"
 
 if [[ -n "${PGSQL1C_POSTGRES_PASSWORD:-}" ]]; then
   PW="$PGSQL1C_POSTGRES_PASSWORD"

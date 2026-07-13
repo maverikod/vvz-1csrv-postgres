@@ -47,9 +47,9 @@ for u in "$PGSQL1C_1C_USER" "$PGSQL1C_PG_USER"; do
   fi
 done
 
-VAR="${PGSQL1C_VAR:-/var/pgsql1c-8327-package}"
-LOG="${PGSQL1C_LOG:-/var/log/pgsql1c-8327-package}"
-ETC="${PGSQL1C_ETC:-/etc/pgsql1c-8327-package}"
+VAR="${PGSQL1C_VAR:-/var/pgsql1c}"
+LOG="${PGSQL1C_LOG:-/var/log/pgsql1c}"
+ETC="${PGSQL1C_ETC:-/etc/pgsql1c}"
 BACKUP="${PGSQL1C_BACKUP:-${VAR}/backups}"
 
 echo ""
@@ -78,11 +78,9 @@ else
   warn "нет доступа к ${VAR}/postgres/PG_VERSION с текущими правами (для проверки PGDATA — root)"
 fi
 
-if [[ -f "${ETC}/srv1cv83" ]]; then
-  ok "конфиг 1С на хосте: ${ETC}/srv1cv83"
-else
-  warn "нет ${ETC}/srv1cv83 (будет создан при установке пакета)"
-fi
+for cfg in srv1cv83-8319 srv1cv83-8327; do
+  [[ -f "${ETC}/${cfg}" ]] && ok "конфиг 1С: ${ETC}/${cfg}" || fail "нет ${ETC}/${cfg}"
+done
 
 COMPOSE_DIR="${COMPOSE_PROJECT_DIR:-/usr/share/vvz-1csrv-postgres-8327}"
 if [[ ! -f "${COMPOSE_DIR}/docker-compose.yml" ]] && [[ -f "${LIB}/../docker-compose.yml" ]]; then
@@ -100,9 +98,12 @@ else
     ["/var/lib/pgpro/std-16/data"]="${VAR}/postgres"
     ["/var/log/1cv8"]="${LOG}"
     ["/home/usr1cv8/.1cv8"]="${VAR}/1cv8"
+    ["/var/cfstorage"]="${VAR}/cache/cfstorage"
+    ["/var/cache/1cv8"]="${VAR}/cache/app"
     ["/var/lib/pgpro/std-16/data/conf.d"]="${ETC}/conf.d"
     ["/var/backups/pgsql"]="${BACKUP}"
-    ["/etc/default/srv1cv83"]="${ETC}/srv1cv83"
+    ["/etc/vvz-1c/srv1cv83-8319.conf"]="${ETC}/srv1cv83-8319"
+    ["/etc/vvz-1c/srv1cv83-8327.conf"]="${ETC}/srv1cv83-8327"
   )
   for dest in "${!EXPECT[@]}"; do
     if docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T app mountpoint -q "$dest" 2>/dev/null; then
@@ -118,6 +119,39 @@ else
   else
     fail "нет PG_VERSION в PGDATA контейнера"
   fi
+  if docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T app \
+    /opt/pgpro/std-16/bin/pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
+    ok "PostgreSQL принимает подключения"
+  else
+    fail "PostgreSQL не принимает подключения"
+  fi
+  for spec in '8.3.19.1351 1540 1541 1560:1591' '8.3.27.2214 1740 1741 1760:1791'; do
+    read -r version port regport range <<<"$spec"
+    if docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T --user usr1cv8 app sh -lc \
+      "for p in /proc/[0-9]*; do [ \"\$(readlink \"\$p/exe\" 2>/dev/null)\" = /opt/1cv8/x86_64/$version/ragent ] || continue; tr '\\0' ' ' <\"\$p/cmdline\" | grep -q -- '-port $port.*-regport $regport.*-range $range.*-debug' && exit 0; done; exit 1"; then
+      ok "$version ragent exact executable/ports/debug"
+    else
+      fail "$version ragent exact executable/ports/debug"
+    fi
+    if docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T --user usr1cv8 app sh -lc \
+      "for p in /proc/[0-9]*; do [ \"\$(readlink \"\$p/exe\" 2>/dev/null)\" = /opt/1cv8/x86_64/$version/rmngr ] || continue; tr '\\0' ' ' <\"\$p/cmdline\" | grep -q -- '-port $regport.*-range $range.*-debug' && exit 0; done; exit 1"; then
+      ok "$version rmngr exact executable/ports/debug"
+    else
+      fail "$version rmngr exact executable/ports/debug"
+    fi
+    if docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T --user usr1cv8 app sh -lc \
+      "for p in /proc/[0-9]*; do [ \"\$(readlink \"\$p/exe\" 2>/dev/null)\" = /opt/1cv8/x86_64/$version/rphost ] || continue; tr '\\0' ' ' <\"\$p/cmdline\" | grep -q -- '-range $range.*-regport $regport.*-debug' && exit 0; done; exit 1"; then
+      ok "$version rphost exact executable/ports/debug"
+    else
+      fail "$version rphost exact executable/ports/debug"
+    fi
+  done
+  docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T app \
+    test -f /home/usr1cv8/.1cv8/1C/1cv8/reg_1541/1CV8Clst.lst \
+    && ok "8.3.19 cluster registry isolated" || fail "8.3.19 cluster registry missing"
+  docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T app \
+    test -f /home/usr1cv8/.1cv8/1C/1cv8-8327/reg_1741/1CV8Clst.lst \
+    && ok "8.3.27 cluster registry isolated" || fail "8.3.27 cluster registry missing"
 fi
 
 echo ""

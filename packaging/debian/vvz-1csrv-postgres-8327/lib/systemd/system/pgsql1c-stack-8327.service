@@ -1,5 +1,5 @@
 [Unit]
-Description=1C:Enterprise + Postgres Pro (Docker Compose). Подробный статус БД и 1С: vvz-1csrv-postgres-8327 status
+Description=Dual 1C 8.3.19.1351 + 8.3.27.2214 and Postgres Pro (Docker Compose)
 After=docker.service docker.socket network-online.target
 Wants=network-online.target docker.service
 

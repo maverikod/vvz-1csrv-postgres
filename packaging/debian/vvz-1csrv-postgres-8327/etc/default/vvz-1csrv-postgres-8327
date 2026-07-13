@@ -1,10 +1,10 @@
 # Параметры для /usr/bin/vvz-1csrv-postgres-8327 (пути к томам см. также /etc/default/pgsql1c-stack-8327).
 
 # Образ с Docker Hub (по умолчанию публичный; при своём реестре замените имя/тег).
-VVZ_IMAGE=docker.io/vasilyvz/vvz-1csrv-postgres:8.3.27.2214
+VVZ_IMAGE=docker.io/vasilyvz/vvz-1csrv-postgres:8.3.27.2214-dual-8.3.19.1351-r1@sha256:386ecbad5e5c709f589668aed5aa657c5f570f36a675567ce5b8aab75af67c23
 
 # Порт PostgreSQL (5432) на хост не публикуется — только порты 1С (см. docker-compose.yml).
 # Подключение к БД с хоста: docker compose exec … или отдельный compose override при необходимости.
 
-# Имя узла контейнера = имя в реестре кластера 1С (reg_1741/*.lst).
-ONEC_HOSTNAME=devel1c8327pkg
+# Оба независимых кластера используют один сетевой узел и разные regport.
+ONEC_HOSTNAME=devel1c

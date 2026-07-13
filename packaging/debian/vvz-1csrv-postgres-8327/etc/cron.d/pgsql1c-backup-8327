@@ -1,4 +1,4 @@
 # PostgreSQL: дампы каждые 2 ч с 08:00 до 20:00 (имя ИмяБазы-ДеньНедели-HH.MM.bz2).
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-0 8-20/2 * * * root /usr/libexec/vvz-1csrv-postgres-8327/pgsql1c-backup-8327 >> /var/log/pgsql1c-8327-package/backup.log 2>&1
+0 8-20/2 * * * root /usr/libexec/vvz-1csrv-postgres-8327/pgsql1c-backup-8327 >> /var/log/pgsql1c/backup-dual.log 2>&1

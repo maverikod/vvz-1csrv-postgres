@@ -20,6 +20,7 @@ if [[ -z "${SOURCE_DATE_EPOCH:-}" ]]; then
     git -C "$ROOT" log -1 --format=%ct -- \
       packaging/build-deb-8.3.27.sh \
       packaging/docker-compose.8.3.27.ship.yml \
+      packaging/srv1cv83.8.3.19.package \
       packaging/srv1cv83.8.3.27.package \
       packaging/debian/vvz-1csrv-postgres-8327
   )"
@@ -35,8 +36,10 @@ cp -f "$ROOT/packaging/docker-compose.8.3.27.ship.yml" \
   "$STAGE/usr/share/vvz-1csrv-postgres-8327/docker-compose.yml"
 cp -f "$STAGE/etc/default/pgsql1c-stack-8327" \
   "$STAGE/usr/share/vvz-1csrv-postgres-8327/pgsql1c-stack-8327.default"
+cp -f "$ROOT/packaging/srv1cv83.8.3.19.package" \
+  "$STAGE/usr/share/vvz-1csrv-postgres-8327/srv1cv83-8319.default"
 cp -f "$ROOT/packaging/srv1cv83.8.3.27.package" \
-  "$STAGE/usr/share/vvz-1csrv-postgres-8327/srv1cv83.default"
+  "$STAGE/usr/share/vvz-1csrv-postgres-8327/srv1cv83-8327.default"
 
 find "$STAGE" -type d -exec chmod 0755 {} +
 chmod 0755 \
@@ -50,7 +53,8 @@ chmod 0644 \
   "$STAGE/lib/systemd/system/"* \
   "$STAGE/usr/share/vvz-1csrv-postgres-8327/docker-compose.yml" \
   "$STAGE/usr/share/vvz-1csrv-postgres-8327/pgsql1c-stack-8327.default" \
-  "$STAGE/usr/share/vvz-1csrv-postgres-8327/srv1cv83.default" \
+  "$STAGE/usr/share/vvz-1csrv-postgres-8327/srv1cv83-8319.default" \
+  "$STAGE/usr/share/vvz-1csrv-postgres-8327/srv1cv83-8327.default" \
   "$STAGE/usr/share/vvz-1csrv-postgres-8327/debconf/locale.template"
 
 fakeroot dpkg-deb --build "$STAGE" "$OUT"
