@@ -1,0 +1,31 @@
+# The known-good 8.3.19 image supplies PostgreSQL, fonts and the licensed
+# Sentinel/PCSC runtime. 8.3.27 is installed alongside it and selected as the
+# only server version started by this image.
+FROM vasilyvz/vvz-1csrv-postgres:backup-8.3.19.1351-20260713
+
+ARG ONEC_8327_VERSION=8.3.27.2214
+ENV ONEC_VERSION=${ONEC_8327_VERSION}
+
+COPY install/8.3.27/deb64_8_3_27_2214.zip /tmp/onec-8.3.27.zip
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends unzip; \
+    mkdir -p /tmp/onec-8.3.27; \
+    unzip -q /tmp/onec-8.3.27.zip -d /tmp/onec-8.3.27; \
+    dpkg -i \
+      /tmp/onec-8.3.27/1c-enterprise-8.3.27.2214-common-nls_8.3.27-2214_amd64.deb \
+      /tmp/onec-8.3.27/1c-enterprise-8.3.27.2214-common_8.3.27-2214_amd64.deb \
+      /tmp/onec-8.3.27/1c-enterprise-8.3.27.2214-server-nls_8.3.27-2214_amd64.deb \
+      /tmp/onec-8.3.27/1c-enterprise-8.3.27.2214-server_8.3.27-2214_amd64.deb \
+      /tmp/onec-8.3.27/1c-enterprise-8.3.27.2214-ws-nls_8.3.27-2214_amd64.deb \
+      /tmp/onec-8.3.27/1c-enterprise-8.3.27.2214-ws_8.3.27-2214_amd64.deb \
+      || apt-get install -y -f; \
+    test -x "/opt/1cv8/x86_64/${ONEC_VERSION}/ragent"; \
+    ln -sfn "/opt/1cv8/x86_64/${ONEC_VERSION}/srv1cv83" /etc/init.d/srv1cv83; \
+    rm -rf /var/lib/apt/lists/* /tmp/onec-8.3.27 /tmp/onec-8.3.27.zip
+
+# 8.3.27 ships a systemd unit instead of the legacy srv1cv83 init script.
+# Containers do not run systemd, so use a dedicated foreground supervisor.
+COPY docker/start-stack-8.3.27.sh /usr/local/bin/start-stack-8.3.27.sh
+RUN chmod +x /usr/local/bin/start-stack-8.3.27.sh

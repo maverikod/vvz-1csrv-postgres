@@ -3,3 +3,9 @@
 data/
 **/__pycache__
 *.pyc
+
+# Installation media other than the Linux server package used by the 8.3.27
+# image are multi-gigabyte client/Windows archives and are not build inputs.
+install/8.3.27/*
+!install/8.3.27/deb64_8_3_27_2214.zip
+.env
